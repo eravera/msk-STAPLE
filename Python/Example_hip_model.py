@@ -16,13 +16,16 @@ email:    emiliano.ravera@uner.edu.ar
 """
 # ----------- import packages --------------
 import numpy as np
+from stl import mesh
 import pandas as pd
 import os, shutil
 from pathlib import Path
 import sys
 import logging
+import scipy.io as sio
 
-from geometry import inferBodySideFromAnatomicStruct
+from geometry import inferBodySideFromAnatomicStruct, \
+                        createTriGeomSet
 
 # -----------------------------------------------------------------------
 # This example demonstrates how to setup a simple STAPLE workflow to 
@@ -89,7 +92,13 @@ for curr_dataset in dataset_set:
     tri_folder = os.path.join(datasets_folder, curr_dataset, 'tri')
     
     # create TriGeomSet dictionary for the specified geometries
-    # geom_set = createTriGeomSet(bones_list, tri_folder)
+    geom_set = createTriGeomSet(bones_list, tri_folder)
+    
+    # create bone geometry folder for visualization
+    geometry_folder_name = curr_model_name, '_Geometry'
+    geometry_folder_path = os.path.join(output_models_folder, geometry_folder_name)
+    # writeModelGeometriesFolder(geom_set, geometry_folder_path, vis_geom_format);
+
 
 
 

@@ -17,6 +17,28 @@ import logging
 import scipy.io as sio
 import gmshparser
 
+# def triangulation(T,P):
+#     # -------------------------------------------------------------------------
+#     # Equivalent to MatLab function. A matrix format to represent triangulations.
+#     # This format has two parts:
+#     # - The vertices, represented as a matrix in which each row contains the
+#     # coordinates of a point in the triangulation.
+#     # - The triangulation connectivity, represented as a matrix in which each 
+#     # row defines a triangle or tetrahedron.
+#     # 
+#     # Inputs: 
+#     #    T = list that define the connectivity 
+#     #    P = list of points
+#     #
+#     # Output:
+#     #     TR = dictionary of the triangulation from this data
+#     # -------------------------------------------------------------------------
+    
+    
+    
+    
+    
+    
 
 def load_mesh(a_tri_mesh_file):
     # -------------------------------------------------------------------------
@@ -49,33 +71,64 @@ def load_mesh(a_tri_mesh_file):
         ext = Path(a_tri_mesh_file).suffix
         # if stl file just open it
         if ext == '.stl':
-            tri_geom = mesh.Mesh.from_file(a_tri_mesh_file)
+            tmp_tri_geom = mesh.Mesh.from_file(a_tri_mesh_file)
+            
+            Faces = tmp_tri_geom.vectors
+            P = Faces.reshape(-1, 3)
+            Vertex = np.zeros(np.shape(tmp_tri_geom.v0), dtype=np.int64)
+
+            _, idx = np.unique(P, axis=0, return_index=True)
+            Points = P[np.sort(idx)]
+
+            Vertex[:,0] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v0]
+            Vertex[:,1] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v1]
+            Vertex[:,2] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v2]
+
+            tri_geom = {'Points': Points, 'ConnectivityList': Vertex}
+                        
             kwd = 'STL'
             
         # if matlab file just open it
         elif ext == '.mat':
-            tri_geom = sio.loadmat(a_tri_mesh_file, squeeze_me=True)
-            kwd = 'MATLAB'
+            # tri_geom = sio.loadmat(a_tri_mesh_file, squeeze_me=True)
+            # kwd = 'MATLAB'
+            tri_geom = {}
         # if gmsh file just open it
         elif ext == '.msh':
-            tmp_mesh = gmshparser.parse(a_tri_mesh_file)
-            # Nodes
-            nid = tmp_mesh.get_node_entities().get_nodes().get_tag()
-            ncoord = tmp_mesh.get_node_entities().get_nodes().get_coordinates()
-            # Elements
-            elid = tmp_mesh.get_element_entities().get_elements().get_tag()
-            elcon = tmp_mesh.get_element_entities().get_elements().get_connectivity()
+            # tmp_mesh = gmshparser.parse(a_tri_mesh_file)
+            # # Nodes
+            # nid = tmp_mesh.get_node_entities().get_nodes().get_tag()
+            # ncoord = tmp_mesh.get_node_entities().get_nodes().get_coordinates()
+            # # Elements
+            # elid = tmp_mesh.get_element_entities().get_elements().get_tag()
+            # elcon = tmp_mesh.get_element_entities().get_elements().get_connectivity()
             
-            # VER ACA COMO GENERAR EL TIPO MESH o triangulation
+            # # VER ACA COMO GENERAR EL TIPO MESH o triangulation
             
-            kwd = 'GMSH'
+            # kwd = 'GMSH'
+            tri_geom = {}
         elif ext == '':
             try:
-                tri_geom = sio.loadmat(a_tri_mesh_file, squeeze_me=True)
-                kwd = 'MATLAB'
+                # tri_geom = sio.loadmat(a_tri_mesh_file, squeeze_me=True)
+                # kwd = 'MATLAB'
+                tri_geom = {}
             except:
                 # if does not have extension try to open stl file
-                tri_geom = mesh.Mesh.from_file(a_tri_mesh_file)
+                tmp_tri_geom = mesh.Mesh.from_file(a_tri_mesh_file)
+                
+                Faces = tmp_tri_geom.vectors
+                P = Faces.reshape(-1, 3)
+                Vertex = np.zeros(np.shape(tmp_tri_geom.v0), dtype=np.int64)
+
+                _, idx = np.unique(P, axis=0, return_index=True)
+                Points = P[np.sort(idx)]
+
+                Vertex[:,0] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v0]
+                Vertex[:,1] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v1]
+                Vertex[:,2] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v2]
+
+                tri_geom = {'Points': Points, 'ConnectivityList': Vertex}
+                
                 kwd = 'STL'
                 
     if not tri_geom:

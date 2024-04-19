@@ -116,8 +116,8 @@ def createTriGeomSet(aTriGeomList, geom_file_folder):
         if not curr_tri_geo:
             # skip building the field if this was no gemoetry
             continue
-        # else:
-            # triGeomSet{bone} = curr_tri_geo
+        else:
+            triGeomSet[bone] = curr_tri_geo
         
         if not triGeomSet:
             logging.exception('createTriGeomSet No triangulations were read in input. \n')

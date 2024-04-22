@@ -80,9 +80,35 @@ def load_mesh(a_tri_mesh_file):
             _, idx = np.unique(P, axis=0, return_index=True)
             Points = P[np.sort(idx)]
 
-            Vertex[:,0] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v0]
-            Vertex[:,1] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v1]
-            Vertex[:,2] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v2]
+            for pos, elem in enumerate(tri_geom.v0):
+                tmp = np.where(Points == elem)[0]
+                if len(tmp) > 3:
+                    l0 = []
+                    l0 = list(tmp)
+                    tmp1 = [x for x in l0 if l0.count(x) > 1]
+                    Vertex[pos,0] = tmp1[0]
+                else:
+                    Vertex[pos,0] = tmp[0]
+                    
+            for pos, elem in enumerate(tri_geom.v1):
+                tmp = np.where(Points == elem)[0]
+                if len(tmp) > 3:
+                    l0 = []
+                    l0 = list(tmp)
+                    tmp1 = [x for x in l0 if l0.count(x) > 1]
+                    Vertex[pos,1] = tmp1[0]
+                else:
+                    Vertex[pos,1] = tmp[0]
+
+            for pos, elem in enumerate(tri_geom.v2):
+                tmp = np.where(Points == elem)[0]
+                if len(tmp) > 3:
+                    l0 = []
+                    l0 = list(tmp)
+                    tmp1 = [x for x in l0 if l0.count(x) > 1]
+                    Vertex[pos,2] = tmp1[0]
+                else:
+                    Vertex[pos,2] = tmp[0]
 
             tri_geom = {'Points': Points, 'ConnectivityList': Vertex}
                         
@@ -123,9 +149,35 @@ def load_mesh(a_tri_mesh_file):
                 _, idx = np.unique(P, axis=0, return_index=True)
                 Points = P[np.sort(idx)]
 
-                Vertex[:,0] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v0]
-                Vertex[:,1] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v1]
-                Vertex[:,2] = [np.where(Points == elem)[0][0] for elem in tmp_tri_geom.v2]
+                for pos, elem in enumerate(tri_geom.v0):
+                    tmp = np.where(Points == elem)[0]
+                    if len(tmp) > 3:
+                        l0 = []
+                        l0 = list(tmp)
+                        tmp1 = [x for x in l0 if l0.count(x) > 1]
+                        Vertex[pos,0] = tmp1[0]
+                    else:
+                        Vertex[pos,0] = tmp[0]
+                        
+                for pos, elem in enumerate(tri_geom.v1):
+                    tmp = np.where(Points == elem)[0]
+                    if len(tmp) > 3:
+                        l0 = []
+                        l0 = list(tmp)
+                        tmp1 = [x for x in l0 if l0.count(x) > 1]
+                        Vertex[pos,1] = tmp1[0]
+                    else:
+                        Vertex[pos,1] = tmp[0]
+
+                for pos, elem in enumerate(tri_geom.v2):
+                    tmp = np.where(Points == elem)[0]
+                    if len(tmp) > 3:
+                        l0 = []
+                        l0 = list(tmp)
+                        tmp1 = [x for x in l0 if l0.count(x) > 1]
+                        Vertex[pos,2] = tmp1[0]
+                    else:
+                        Vertex[pos,2] = tmp[0]
 
                 tri_geom = {'Points': Points, 'ConnectivityList': Vertex}
                 

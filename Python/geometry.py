@@ -127,8 +127,165 @@ def createTriGeomSet(aTriGeomList, geom_file_folder):
         
     return 0
 
+# -----------------------------------------------------------------------------
+def bodySide2Sign(side_raw):
+    # -------------------------------------------------------------------------
+    # Returns a sign and a mono-character, lower-case string corresponding to 
+    # a body side. Used in several STAPLE functions for:
+    # 1) having a standard side label
+    # 2) adjust the reference systems to the body side.
+    # 
+    # Inputs:
+    #   side_raw - generic string identifying a body side. 'right', 'r', 'left' 
+    # and 'l' are accepted inputs, both lower and upper cases.
+    # 
+    #   Outputs:
+    #   sign_side - sign to adjust reference systems based on body side. Value:
+    #   1 for right side, Value: -1 for left side.
+    # 
+    #   side_low - a single character, lower case body side label that can be 
+    #   used in all other STAPLE functions requiring such input.
+    # -------------------------------------------------------------------------
+    
+    side_low = side_raw[0].lower()
+    
+    if side_low == 'r':
+        sign_side = 1
+    elif side_low == 'l':
+        sign_side = -1
+    else:
+        print('bodySide2Sign Error: specify right "r" or left "l"')
+    
+    return sign_side, side_low
 
-
+# -----------------------------------------------------------------------------
+def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE', algo_femur = 'GIBOC-cylinder', algo_tibia = 'Kai2014', result_plots = 1, debug_plots = 0, in_mm = 1):
+    # -------------------------------------------------------------------------
+    #  Compute parameters of the lower limb joints associated with the bone 
+    # geometries provided as input through a set of triangulations dictionary.
+    # Note that:
+    # 1) This function does not produce a complete set of joint parameters but 
+    # only those available through geometrical analyses, that are:
+    #       * from pelvis: ground_pelvis_child
+    #       * from femur : hip_child  // knee_parent
+    #       * from tibia : knee_child** 
+    #       * from talus : ankle_child // subtalar parent
+    # other functions then complete the information required to generate a MSK
+    # model, e.g. use ankle child location and ankle axis to define an ankle
+    # parent reference system etc.
+    # ** note that the tibia geometry was not used to define the knee child
+    # anatomical coord system in the approach of Modenese et al. JB 2018.
+    # 2) Bony landmarks are identified on all bones except the talus.
+    # 3) Body-fixed Cartesian coordinate system are defined but not employed in
+    # the construction of the models.
+    # 
+    # Inputs:
+    #   geom_set - a set of triangulation dictionary, normally created
+    #   using the function createTriGeomSet. See that function for more
+    #   details.
+    # 
+    #   side_raw - generic string identifying a body side. 'right', 'r', 'left' 
+    #   and 'l' are accepted inputs, both lower and upper cases.
+    # 
+    #   algo_pelvis - the algorithm selected to process the pelvis geometry.
+    # 
+    #   algo_femur - the algorithm selected to process the femur geometry.
+    # 
+    #   algo_tibia - the algorithm selected to process the tibial geometry.
+    # 
+    #   result_plots - enable plots of final fittings and reference systems. 
+    #   Value: 1 (default) or 0.
+    # 
+    #   debug_plots - enable plots used in debugging. Value: 1 or 0 (default). 
+    # 
+    #   in_mm - (optional) indicates if the provided geometries are given in mm
+    #   (value: 1) or m (value: 0). Please note that all tests and analyses
+    #   done so far were performed on geometries expressed in mm, so this
+    #   option is more a placeholder for future adjustments.
+    # 
+    # Outputs:
+    #   JCS - dictionary collecting the parameters of the joint coordinate
+    #   systems computed on the bone triangulations.
+    # 
+    #   BL - dictionary collecting the bone landmarks identified on the
+    #   three-dimensional bone surfaces.
+    # 
+    #   BCS - dictionary collecting the body coordinate systems of the 
+    #   processed bones.
+    # -------------------------------------------------------------------------
+    
+    # setting defaults
+    
+    if side_raw == '':
+        side = inferBodySideFromAnatomicStruct(triGeomBoneSet)
+    else:
+        # get sign correspondent to body side
+        _, side = bodySide2Sign(side_raw)
+    
+    # names of the segments
+    femur_name = 'femur_' + side
+    tibia_name = 'tibia_' + side
+    patella_name = 'patella_' + side
+    talus_name = 'talus_' + side
+    calcn_name = 'calcn_' + side 
+    toes_name  = 'toes_' + side
+    
+    BCS = {}
+    JCS = {}
+    BL = {}
+    
+    print('-----------------------------------')
+    print('Processing provided bone geometries')
+    print('-----------------------------------')
+    
+    # visualization of the algorithms that will be used (depends on available
+    # segments
+    print('ALGORITHMS:')
+    
+    if 'pelvis' in triGeomBoneSet or 'pelvis_no_sacrum' in triGeomBoneSet:
+        BCS['pelvis'] = {}
+        JCS['pelvis'] = {}
+        BL['pelvis'] = {}
+        print('  pelvis: ', algo_pelvis)
+    if femur_name in triGeomBoneSet:
+        BCS['femur'] = {}
+        JCS['femur'] = {}
+        BL['femur'] = {}
+        print('  femur: ', algo_femur)
+    if tibia_name in triGeomBoneSet:
+        BCS['tibia'] = {}
+        JCS['tibia'] = {}
+        BL['tibia'] = {}
+        print('  tibia: ', algo_tibia)
+    if patella_name in triGeomBoneSet:
+    #     print('  patella: ', algo_patella)
+        print('  patella: ', 'N/A')
+    if talus_name in triGeomBoneSet:
+        BCS['talus'] = {}
+        JCS['talus'] = {}
+        BL['talus'] = {}
+        print('  talus: ', 'STAPLE')
+    if calcn_name in triGeomBoneSet:
+        BCS['foot'] = {}
+        JCS['foot'] = {}
+        BL['foot'] = {}
+        print('  foot: ', 'STAPLE')
+    if toes_name in triGeomBoneSet:
+        print('  toes: ', 'N/A')
+        
+    # ---- PELVIS -----
+    if 'pelvis' in triGeomBoneSet:
+        if algo_pelvis == 'STAPLE':
+            # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+            #     STAPLE_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+        if algo_pelvis == 'Kai2014':
+            # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+            #     Kai2014_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    
+    # ---- FEMUR -----
+    
+    
+    return 0
 
 
 

@@ -54,7 +54,7 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     # ---------------------------------------------------
     
     # inertial axes
-    
+    # _, CenterVol, InertiaMatrix, D =  TriInertiaPpties(Pelvis)
     
     return 0
 

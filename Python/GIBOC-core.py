@@ -108,7 +108,7 @@ def TriInertiaPpties(Tr = {}):
     CenterVol[1] = intg[2]/mass
     CenterVol[2] = intg[3]/mass
     
-    # InertiaMatrix[0][0] = intg(6) + intg(7) - mass*(CenterVol([2 3])'*CenterVol([2 3])) # aca hacer la norma al cuadrado de CenterVol[1:]
+    # InertiaMatrix[0,0] = intg[6] + intg(7) - mass*(CenterVol([2 3])'*CenterVol([2 3])) # aca hacer la norma al cuadrado de CenterVol[1:]
     
     
     

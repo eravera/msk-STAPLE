@@ -108,15 +108,25 @@ def TriInertiaPpties(Tr = {}):
     CenterVol[1] = intg[2]/mass
     CenterVol[2] = intg[3]/mass
     
-    # InertiaMatrix[0,0] = intg[6] + intg(7) - mass*(CenterVol([2 3])'*CenterVol([2 3])) # aca hacer la norma al cuadrado de CenterVol[1:]
+    InertiaMatrix[0,0] = intg[5] + intg[6] - mass*((np.linalg.norm(CenterVol[0, 1:]))**2) # CenterVol([2 3])
+    InertiaMatrix[1,1] = intg[4] + intg[6] - mass*((np.linalg.norm(CenterVol[0, 0:3:2]))**2) # CenterVol([3 1]) o CenterVol([1 3]) 
+    InertiaMatrix[2,2] = intg[4] + intg[5] - mass*((np.linalg.norm(CenterVol[0, 0:2]))**2) # CenterVol([1 2])
     
+    InertiaMatrix[0,1] = -(intg[7] - mass*(CenterVol[0, 0]*CenterVol[0, 1]))
+    InertiaMatrix[1,2] = -(intg[8] - mass*(CenterVol[0, 1]*CenterVol[0, 2]))
+    InertiaMatrix[2,0] = -(intg[9] - mass*(CenterVol[0, 2]*CenterVol[0, 0]))
     
+    i_lower = np.tril_indices(3, -1)
+    InertiaMatrix[i_lower] = InertiaMatrix.T[i_lower] # make the matrix symmetric
     
+    CenterVol += PseudoCenter.T
     
+    eigValues, eigVctrs = np.linalg.eig(InertiaMatrix)
+    D = np.diag(eigValues)
     
     return eigVctrs, CenterVol, InertiaMatrix, D, mass 
 
-
+# -----------------------------------------------------------------------------
 
 
 

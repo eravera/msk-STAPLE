@@ -21,6 +21,7 @@ from pathlib import Path
 import sys
 import time
 import logging
+from scipy.spatial import ConvexHull
 
 from geometry import bodySide2Sign
 
@@ -74,8 +75,15 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     Z0 = V_all[:,0]
     
     # compute convex hull
+    hull = ConvexHull(pelvisTri['Points'])
+    # transform it in triangulation
+    PelvisConvHull = {'Points': hull.points[hull.vertices], 'ConnectivityList': hull.simplices}
     
+    #%% Get the Post-Ant direction by finding the largest triangle of the pelvis
+    # and checking the inertial axis that more closely aligns with it
     
+    # Find the largest triangle on the projected Convex Hull
+    # PelvisConvHull_Ppties = TriMesh2DProperties(PelvisConvHull)
     
     
     

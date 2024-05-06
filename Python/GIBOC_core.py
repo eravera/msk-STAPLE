@@ -22,9 +22,12 @@ from pathlib import Path
 import sys
 import time
 import logging
+from pykdtree.kdtree import KDTree
+
 
 #%% ---------------------------------------------------------------------------
 # SUBFUNTIONS
+# TriangulationFun
 # -----------------------------------------------------------------------------
 def Subexpressions (w0 , w1 , w2):
     # -------------------------------------------------------------------------
@@ -127,8 +130,42 @@ def TriInertiaPpties(Tr = {}):
     return eigVctrs, CenterVol, InertiaMatrix, D, mass 
 
 # -----------------------------------------------------------------------------
+def TriMesh2DProperties(Tr = {}):
+    # -------------------------------------------------------------------------
+    # Compute some 2D properties of a triangulation object
+    Properties = {}
+    # Convert tiangulation dict to mesh object
+    Tr_mesh = mesh.Mesh(np.zeros(Tr['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(Tr['ConnectivityList']):
+        for j in range(3):
+            Tr_mesh.vectors[i][j] = Tr['Points'][f[j],:]
+    
+    # get triangle object name
+    Properties['Name'] = f'{Tr=}'.partition('=')[0]
+    
+    # compute the area for each trinagle of the mesh
+    Properties['Areas'] = Tr_mesh.areas
+    
+    # compute the total area of the mesh
+    Properties['TotalArea'] = np.sum(Properties['Areas'])
+    
+    # compute the center of the mesh
+    Properties['Center'] = np.sum(Tr_mesh.centroids*Properties['Areas']/Properties['TotalArea'], 0)
+    
+    # compute the mean normal vector for each normal vector from triangles' mesh
+    tmp_meanNormal = np.sum(Tr_mesh.get_unit_normals()*Properties['Areas']/Properties['TotalArea'], 0)
+    Properties['meanNormal'] = tmp_meanNormal/np.linalg.norm(tmp_meanNormal)
+    
+    # compute the coordinates of the nearest neighbor to the center of the mesh.
+    tree = KDTree(Tr['Points'])
+    pts = np.array([Properties['Center']])
+    dist, idx = tree.query(pts)
 
+    Tr['onMeshCenter'] = Tr['Points'][idx]
+            
+    return Properties
 
+# -----------------------------------------------------------------------------
 
 
 

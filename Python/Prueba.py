@@ -9,7 +9,8 @@ import numpy as np
 from stl import mesh
 import fast_simplification
 
-
+from scipy.spatial import ConvexHull
+from pykdtree.kdtree import KDTree
 
 # triangulation en matlab (https://www.mathworks.com/help/matlab/math/triangulation-representations.html)
 
@@ -61,7 +62,7 @@ import fast_simplification
 #      3     4     2
 #      4     6     2
 
-tri_geom = mesh.Mesh.from_file('/home/emi/Documents/Codigos MATLAB_PYTHON/STAPLE/bone_datasets/TLEM2/stl/pelvis.stl')
+tri_geom = mesh.Mesh.from_file('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/bone_datasets/TLEM2/stl/pelvis.stl')
 
 Faces = tri_geom.vectors
 P = Faces.reshape(-1, 3)
@@ -122,7 +123,7 @@ for i, f in enumerate(Vertex):
 aux = new_mesh.vectors
 
 # Write the mesh to file "pelvis_new.stl"
-new_mesh.save('/home/emi/Documents/Codigos MATLAB_PYTHON/STAPLE/Python/pelvis_new.stl')
+new_mesh.save('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/pelvis_new.stl')
 
 # # check differences
 # tri_geom1 = mesh.Mesh.from_file('/home/emi/Documents/Codigos MATLAB_PYTHON/STAPLE/pelvis_new.stl')
@@ -154,7 +155,7 @@ for i, f in enumerate(faces_out):
 aux = new_mesh1.vectors
 
 # Write the mesh to file "pelvis_new.stl"
-new_mesh1.save('/home/emi/Documents/Codigos MATLAB_PYTHON/STAPLE/Python/pelvis_new_simplify.stl')
+new_mesh1.save('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/pelvis_new_simplify.stl')
 
 
 # triangle = []
@@ -280,19 +281,33 @@ new_mesh1.save('/home/emi/Documents/Codigos MATLAB_PYTHON/STAPLE/Python/pelvis_n
 # # Show the plot to the screen
 # pyplot.show()
 #%%
-A = np.array([[1, 2, 10], [3, 4, 20], [9, 6, 15]])
+# A = np.array([[1, 2, 10], [3, 4, 20], [9, 6, 15]])
 
 # triangle['Points']
 
+hull = ConvexHull(triangle['Points'])
+
+HullPoints = hull.points[hull.vertices]
+HullConect = hull.simplices
+
+Hulltriangle = {'Points': HullPoints, 'ConnectivityList': HullConect}
 
 
+# aux = sum(TR.incenter.*repmat(Properties.Area,1,3),1)/Properties.TotalArea;
 
+tmp1 = new_mesh1.areas
+tmp2 = new_mesh1.centroids
 
+tmp_meanNormal = np.sum(new_mesh1.get_unit_normals()*tmp1/np.sum(tmp1),0)
 
+center = np.sum(tmp2*tmp1/np.sum(tmp2), 0)
 
+# print(np.were(tmp2, np.min(tmp2-center)))
 
-
-
-
+tree = KDTree(triangle['Points'])
+# pts = np.array([[0, 0.2, 0.2]])
+pts = np.array([center])
+dist, idx = tree.query(pts)
+print(triangle['Points'][idx])
 
 

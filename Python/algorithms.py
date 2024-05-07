@@ -15,6 +15,7 @@ email:    emiliano.ravera@uner.edu.ar
 """
 # ----------- import packages --------------
 import numpy as np
+from stl import mesh
 import pandas as pd
 import os, shutil
 from pathlib import Path
@@ -25,7 +26,8 @@ from scipy.spatial import ConvexHull
 
 from geometry import bodySide2Sign
 
-from GIBOC_core import TriInertiaPpties
+from GIBOC_core import TriInertiaPpties, \
+                        TriMesh2DProperties
 
 #%% ---------------------------------------------------------------------------
 # PRIVATE
@@ -64,7 +66,7 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     # -------------------------------------------------------------------------
     
     RotPseudoISB2Glob = np.zeros((3,3))
-    LargestTriangle = {}
+    tmp_LargestTriangle = {}
     BL = {}
     
     # inertial axes
@@ -83,7 +85,24 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     # and checking the inertial axis that more closely aligns with it
     
     # Find the largest triangle on the projected Convex Hull
-    # PelvisConvHull_Ppties = TriMesh2DProperties(PelvisConvHull)
+    PelvisConvHull_Ppties = TriMesh2DProperties(PelvisConvHull)
+    I = np.argmax(PelvisConvHull_Ppties['Area'])
+    
+    # Get the triangle center and normal
+    tmp_LargestTriangle['Points'] = PelvisConvHull['Points'][PelvisConvHull['ConnectivityList'][I]]
+    tmp_LargestTriangle['ConnectivityList'] = np.array([0, 1, 2])
+    
+    # Convert tiangulation dict to mesh object
+    LargestTriangle = mesh.Mesh(np.zeros(tmp_LargestTriangle['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(tmp_LargestTriangle['ConnectivityList']):
+        for j in range(3):
+            LargestTriangle.vectors[i][j] = tmp_LargestTriangle['Points'][f[j],:]
+    
+    # NOTE that we are working using a GIBOC reference system until where the 
+    # rotation matrix is assembled using ISB conventions(specified in comments)
+    
+    # vector pointing forward is X
+    
     
     
     

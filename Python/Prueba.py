@@ -8,9 +8,27 @@ Created on Tue Apr 16 10:58:04 2024
 import numpy as np
 from stl import mesh
 import fast_simplification
-
+import os, shutil
 from scipy.spatial import ConvexHull
 from pykdtree.kdtree import KDTree
+from pathlib import Path
+
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
+
+path = Path(abspath)
+print(path.parent.absolute())
+
+tmp_path = path._parts
+i = [ind for ind, val in enumerate(tmp_path) if val == 'Codigos MATLAB_PYTHON'][0]
+
+ruta = ''
+for pos in range(i+2):
+    ruta += tmp_path[pos]
+    if tmp_path[pos] != '/':
+        ruta += '/'
 
 # triangulation en matlab (https://www.mathworks.com/help/matlab/math/triangulation-representations.html)
 
@@ -62,7 +80,7 @@ from pykdtree.kdtree import KDTree
 #      3     4     2
 #      4     6     2
 
-tri_geom = mesh.Mesh.from_file('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/bone_datasets/TLEM2/stl/pelvis.stl')
+tri_geom = mesh.Mesh.from_file(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
 
 Faces = tri_geom.vectors
 P = Faces.reshape(-1, 3)
@@ -123,7 +141,7 @@ for i, f in enumerate(Vertex):
 aux = new_mesh.vectors
 
 # Write the mesh to file "pelvis_new.stl"
-new_mesh.save('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/pelvis_new.stl')
+new_mesh.save(ruta + 'Python/pelvis_new.stl')
 
 # # check differences
 # tri_geom1 = mesh.Mesh.from_file('/home/emi/Documents/Codigos MATLAB_PYTHON/STAPLE/pelvis_new.stl')
@@ -155,7 +173,7 @@ for i, f in enumerate(faces_out):
 aux = new_mesh1.vectors
 
 # Write the mesh to file "pelvis_new.stl"
-new_mesh1.save('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/pelvis_new_simplify.stl')
+new_mesh1.save(ruta + 'Python/pelvis_new_simplify.stl')
 
 
 # triangle = []
@@ -309,5 +327,21 @@ tree = KDTree(triangle['Points'])
 pts = np.array([center])
 dist, idx = tree.query(pts)
 print(triangle['Points'][idx])
+
+
+TMPtriangle = {}
+TMPtriangle['Points'] = points_out
+TMPtriangle['ConnectivityList'] = faces_out
+
+I = np.argmax(tmp1)
+aux1 = TMPtriangle['Points'][TMPtriangle['ConnectivityList'][I]]
+
+
+
+
+
+
+
+
 
 

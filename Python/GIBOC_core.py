@@ -166,6 +166,29 @@ def TriMesh2DProperties(Tr = {}):
     return Properties
 
 # -----------------------------------------------------------------------------
+def TriChangeCS(Tr = {}, V = np.zeros((3,3)), T = np.zeros(3)):
+    # -------------------------------------------------------------------------
+    # Change the triangulation coordinate system.
+    # If only one argument is provided Tr is moved to its principal inertia 
+    # axis CS
+    TrNewCS = {}
+    # If new basis matrices and translation vector is not provided the PIA of
+    # the shape are calculated to move it to it.
+    if np.norm(V) == 0 and np.norm(T) == 0:
+        V, T = TriInertiaPpties(Tr)
+    elif np.norm(V) != 0 and np.norm(T) == 0:
+        logging.exception('Wrong number of input argument, 1 move to PIA CS, 3 move to CS defined by V and T \n')
+    
+    # Translate the point by T
+    Pts_T = Tr['Points'] - T
+    
+    # Rotate the points with V
+    Pts_T_R = np.dot(Pts_T,V)
+    
+    # Construct the new triangulation
+    TrNewCS = {'Points': Pts_T_R, 'ConnectivityList': Tr['ConnectivityList']}
+    
+    return TrNewCS, V, T
 
 
 

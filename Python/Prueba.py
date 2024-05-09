@@ -12,6 +12,9 @@ import os, shutil
 from scipy.spatial import ConvexHull
 from pykdtree.kdtree import KDTree
 from pathlib import Path
+from sklearn import preprocessing
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
@@ -337,11 +340,18 @@ I = np.argmax(tmp1)
 aux1 = TMPtriangle['Points'][TMPtriangle['ConnectivityList'][I]]
 
 
+eigenvalues, eigenvectors = np.linalg.eig(np.array([[1, 1, 2], [1, 2, 2], [1, 3, 0]]))
+
+aux2 = np.array([[2, 0, 0], [0, 1, 0], [0, 0, 1]])
+
+normalized_arr = preprocessing.normalize(aux2,axis=0)
+print(normalized_arr)
+
+aux3 = np.dot(TMPtriangle['Points'],aux2)
 
 
+fig = plt.figure()
+ax = fig.add_subplot(projection = '3d')
+ax.plot_trisurf(TMPtriangle['Points'][:,0], TMPtriangle['Points'][:,1], TMPtriangle['Points'][:,2], triangles = TMPtriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False)
 
-
-
-
-
-
+plt.show()

@@ -355,3 +355,18 @@ ax = fig.add_subplot(projection = '3d')
 ax.plot_trisurf(TMPtriangle['Points'][:,0], TMPtriangle['Points'][:,1], TMPtriangle['Points'][:,2], triangles = TMPtriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False)
 
 plt.show()
+
+
+
+soa = np.array([[0, 0, 1, 1, -2, 0], [0, 0, 2, 1, 1, 0],
+                [0, 0, 3, 2, 1, 0], [0, 0, 4, 0.5, 0.7, 0]])
+
+X, Y, Z, U, V, W = zip(*soa)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.quiver(X, Y, Z, U, V, W)
+ax.set_xlim([-1, 0.5])
+ax.set_ylim([-1, 1.5])
+ax.set_zlim([-1, 8])
+plt.show()
+

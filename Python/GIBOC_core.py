@@ -23,6 +23,8 @@ import sys
 import time
 import logging
 from pykdtree.kdtree import KDTree
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 
 #%% ---------------------------------------------------------------------------
@@ -195,4 +197,24 @@ def TriChangeCS(Tr = {}, V = np.zeros((3,3)), T = np.zeros(3)):
 
 
 #%% ---------------------------------------------------------------------------
+# PlotFun
+# -----------------------------------------------------------------------------
+def plotDot(centers, color = 'k', r = 1.75):
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    
+    # Make data
+    u = np.linspace(0, 2 * np.pi, 50)
+    v = np.linspace(0, np.pi, 50)
+    x = r * np.outer(np.cos(u), np.sin(v)) + centers[0]
+    y = r * np.outer(np.sin(u), np.sin(v)) + centers[1]
+    z = r * np.outer(np.ones(np.size(u)), np.cos(v)) + centers[0]
+    
+    # Plot the surface
+    ax.plot_surface(x, y, z, color)
+    
+    return ax
+
+
 

@@ -31,7 +31,8 @@ from geometry import bodySide2Sign
 
 from GIBOC_core import TriInertiaPpties, \
                         TriMesh2DProperties, \
-                         TriChangeCS
+                         TriChangeCS, \
+                          plotDot
 
 #%% ---------------------------------------------------------------------------
 # PRIVATE
@@ -170,9 +171,76 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     BL['ICT1'] = P1
     BL['ICT2'] = P2
     
-    # # debugs Plots
-    # if debug_plots:
-    #     plt.figure()
+    # debugs Plots
+    if debug_plots:
+        
+        # Figure 1: X0 should be pointing anteriorly-no interest in other axes
+        fig = plt.figure(1)
+        ax1 = fig.add_subplot(projection = '3d')
+        # plot mesh
+        ax1.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
+                         triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
+        # plot X0 arrow
+        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  CenterVol[0] + X0[0], CenterVol[1] + X0[1], CenterVol[2] + X0[2], \
+                  scale=1, color='r', length = 60)
+        # plot Y0 arrow
+        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  CenterVol[0] + Y0[0], CenterVol[1] + Y0[1], CenterVol[2] + Y0[2], \
+                  scale=1, color='g', length = 60)
+        # plot Z0 arrow
+        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  CenterVol[0] + Z0[0], CenterVol[1] + Z0[1], CenterVol[2] + Z0[2], \
+                  scale=1, color='b', length = 60)
+        
+        ax1.set_title('X0 should be pointing anteriorly - no interest in other axes')
+        
+        # Figure 2: Check axes of inertia orientation
+        fig = plt.figure(2)
+        ax2 = fig.add_subplot(projection = '3d')
+        # plot mesh
+        ax2.plot_trisurf(PelvisInertia['Points'][:,0], PelvisInertia['Points'][:,1], PelvisInertia['Points'][:,2], \
+                         triangles = PelvisInertia['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
+        # plot i unit vector
+        ax2.quiver(0, 0, 0, 1, 0, 0, scale=1, color='r', length = 60)
+        # plot j unit vector
+        ax2.quiver(0, 0, 0, 0, 1, 0, scale=1, color='g', length = 60)
+        # plot k unit vector
+        ax2.quiver(0, 0, 0, 0, 0, 1, scale=1, color='b', length = 60)
+        
+        ax2.set_title('Check axes of inertia orientation')
+        
+        # Figure 3: Points should be external points in the iliac wings (inertia ref syst)
+        fig = plt.figure(3)
+        ax3 = fig.add_subplot(projection = '3d')
+        # plot mesh
+        ax3.plot_trisurf(PelvisInertia['Points'][:,0], PelvisInertia['Points'][:,1], PelvisInertia['Points'][:,2], \
+                         triangles = PelvisInertia['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
+        # plot landmark 1 in ASIS
+        ax3.plotDot(PelvisInertia['Points'][ind_P1,:], 'k', 7)
+        # plot landmark 2 in ASIS
+        ax3.plotDot(PelvisInertia['Points'][ind_P2,:], 'k', 7)
+                
+        ax3.set_title('Points should be external points in the iliac wings (inertia ref syst)')
+        
+        # Figure 4: Points should be external points in the iliac wings (glob ref syst)
+        fig = plt.figure(4)
+        ax4 = fig.add_subplot(projection = '3d')
+        # plot mesh
+        ax4.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
+                         triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
+        # plot landmark 1 in ASIS
+        ax4.plotDot(pelvisTri['Points'][P1,:], 'k', 7)
+        # plot landmark 2 in ASIS
+        ax4.plotDot(pelvisTri['Points'][P2,:], 'k', 7)
+        # plot landmark 3: ASIS midpoint
+        ax4.plotDot(pelvisTri['Points'][P3,:], 'k', 7)
+        # plot Z0 arrow
+        ax4.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  CenterVol[0] + Z0[0], CenterVol[1] + Z0[1], CenterVol[2] + Z0[2], \
+                  scale=1, color='b', length = 60)
+                        
+        ax4.set_title('Points should be external points in the iliac wings (glob ref syst)')
         
     
     

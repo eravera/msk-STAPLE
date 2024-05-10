@@ -32,7 +32,8 @@ from geometry import bodySide2Sign
 from GIBOC_core import TriInertiaPpties, \
                         TriMesh2DProperties, \
                          TriChangeCS, \
-                          plotDot
+                          plotDot, \
+                           quickPlotRefSystem
 
 #%% ---------------------------------------------------------------------------
 # PRIVATE
@@ -84,30 +85,44 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     # compute convex hull
     hull = ConvexHull(pelvisTri['Points'])
     # transform it in triangulation
-    PelvisConvHull = {'Points': hull.points[hull.vertices], 'ConnectivityList': hull.simplices}
+    #  ---------------
+    # hull object doesn't remove unreferenced vertices
+    # create a mask to re-index faces for only referenced vertices
+    vid = np.sort(hull.vertices)
+    mask = np.zeros(len(hull.points), dtype=np.int64)
+    mask[vid] = np.arange(len(vid))
+    # remove unreferenced vertices here
+    faces = mask[hull.simplices].copy()
+    # rescale vertices back to original size
+    vertices = hull.points[vid].copy()
+    #  ---------------
+    PelvisConvHull = {'Points': vertices, 'ConnectivityList': faces}
     
     #%% Get the Post-Ant direction by finding the largest triangle of the pelvis
     # and checking the inertial axis that more closely aligns with it
     
     # Find the largest triangle on the projected Convex Hull
     PelvisConvHull_Ppties = TriMesh2DProperties(PelvisConvHull)
-    I = np.argmax(PelvisConvHull_Ppties['Area'])
+    I = np.argmax(PelvisConvHull_Ppties['Areas'])
     
     # Get the triangle center and normal
     tmp_LargestTriangle['Points'] = PelvisConvHull['Points'][PelvisConvHull['ConnectivityList'][I]]
-    tmp_LargestTriangle['ConnectivityList'] = np.array([0, 1, 2])
+    tmp_LargestTriangle['ConnectivityList'] = np.array([[0, 1, 2]])
     
     # Convert tiangulation dict to mesh object
     LargestTriangle = mesh.Mesh(np.zeros(tmp_LargestTriangle['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
     for i, f in enumerate(tmp_LargestTriangle['ConnectivityList']):
+        print(f)
         for j in range(3):
             LargestTriangle.vectors[i][j] = tmp_LargestTriangle['Points'][f[j],:]
+    # update normals
+    LargestTriangle.update_normals()
     
     # NOTE that we are working using a GIBOC reference system until where the 
     # rotation matrix is assembled using ISB conventions(specified in comments)
     
     # vector pointing forward is X
-    ind_X = np.argmax(np.abs(np.dot(V_all.T, LargestTriangle.get_unit_normals())))
+    ind_X = np.argmax(np.abs(np.dot(V_all.T, LargestTriangle.get_unit_normals().T)))
     X0 = V_all[:, ind_X]
     
     # Reorient X0 to point posterior to anterior
@@ -230,11 +245,11 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
         ax4.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
                          triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
         # plot landmark 1 in ASIS
-        ax4.plotDot(pelvisTri['Points'][P1,:], 'k', 7)
+        ax4.plotDot(P1, 'k', 7)
         # plot landmark 2 in ASIS
-        ax4.plotDot(pelvisTri['Points'][P2,:], 'k', 7)
+        ax4.plotDot(P2, 'k', 7)
         # plot landmark 3: ASIS midpoint
-        ax4.plotDot(pelvisTri['Points'][P3,:], 'k', 7)
+        ax4.plotDot(P3, 'k', 7)
         # plot Z0 arrow
         ax4.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
                   CenterVol[0] + Z0[0], CenterVol[1] + Z0[1], CenterVol[2] + Z0[2], \
@@ -242,8 +257,29 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
                         
         ax4.set_title('Points should be external points in the iliac wings (glob ref syst)')
         
-    
-    
+        # Figure 5: plot pelvis, convex hull, largest identified triangle and ISB pelvis reference system
+        fig = plt.figure(5)
+        ax5 = fig.add_subplot(projection = '3d')
+        
+        tmp = {}
+        tmp['V'] = RotPseudoISB2Glob
+        tmp['Origin'] = P3
+        # plot pelvis, convex hull, largest identified triangle
+        ax5.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
+                         triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, color = 'b', shade=False)
+        ax5.plot_trisurf(PelvisConvHull['Points'][:,0], PelvisConvHull['Points'][:,1], PelvisConvHull['Points'][:,2], \
+                         triangles = PelvisConvHull['ConnectivityList'], edgecolor=[[0.3,0.3,0.3]], linewidth=1.0, alpha=0.2, color = 'c', shade=False)
+        ax5.plot_trisurf(LargestTriangle['Points'][:,0], LargestTriangle['Points'][:,1], LargestTriangle['Points'][:,2], \
+                         triangles = LargestTriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.8, color = 'r', shade=False)
+        # plot axes of pelvis (ISB)
+        ax5.quickPlotRefSystem(tmp)
+        # plot landmarks
+        ax5.plotDot(P1, 'k', 7)
+        ax5.plotDot(P2, 'k', 7)
+        ax5.plotDot(P3, 'k', 7)
+        # Remove grid
+        ax5.grid(False)
+    # END debugs Plots -----
     
     return RotPseudoISB2Glob, LargestTriangle, BL
 

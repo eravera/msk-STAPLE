@@ -65,17 +65,17 @@ def TriInertiaPpties(Tr = {}):
         for j in range(3):
             tmp_mesh.vectors[i][j] = Points[f[j],:]
     
-    if tmp_mesh.is_close() == 'False':
-        logging.exception('The inertia properties are for hole-free triangulations. \n')
-        logging.exception(' Close your mesh before use, try with TriFillPlanarHoles. \n')
-        logging.exception(' For 2D mesh use TriMesh2DProperties. \n')
+    # if not tmp_mesh.is_close(): # == 'False'
+    #     logging.exception('The inertia properties are for hole-free triangulations. \n')
+    #     logging.exception(' Close your mesh before use, try with TriFillPlanarHoles. \n')
+    #     logging.exception(' For 2D mesh use TriMesh2DProperties. \n')
         
     PseudoCenter = np.mean(Points, 0)
     Nodes = Points - PseudoCenter
            
     mult = np.array([1/6, 1/24, 1/24, 1/24, 1/60, 1/60, 1/60, 1/120, 1/120, 1/120])
 
-    intg = np.zeros((1,10))
+    intg = np.zeros(10)
     
     for trian in tmp_mesh.vectors:
         # vertices of elements #trian
@@ -92,26 +92,26 @@ def TriInertiaPpties(Tr = {}):
         # Update integrals
         intg[0] += d[0]*f1x
         
-        intg[2] += d[0]*f2x
-        intg[5] += d[0]*f3x
+        intg[1] += d[0]*f2x
+        intg[4] += d[0]*f3x
         
-        intg[3] += d[1]*f2y
-        intg[6] += d[1]*f3y
+        intg[2] += d[1]*f2y
+        intg[5] += d[1]*f3y
         
-        intg[4] += d[2]*f2z
-        intg[7] += d[2]*f3z
+        intg[3] += d[2]*f2z
+        intg[6] += d[2]*f3z
         
-        intg[8] += d[0]*(y0*g0x + y1*g1x + y2*g2x)
-        intg[9] += d[1]*(z0*g0y + z1*g1y + z2*g2y)
-        intg[10] += d[2]*(x0*g0z + x1*g1z + x2*g2z)
+        intg[7] += d[0]*(y0*g0x + y1*g1x + y2*g2x)
+        intg[8] += d[1]*(z0*g0y + z1*g1y + z2*g2y)
+        intg[9] += d[2]*(x0*g0z + x1*g1z + x2*g2z)
         
     intg *= mult
             
     mass = intg[0]
     
-    CenterVol[0] = intg[1]/mass
-    CenterVol[1] = intg[2]/mass
-    CenterVol[2] = intg[3]/mass
+    CenterVol[0,0] = intg[1]/mass
+    CenterVol[0,1] = intg[2]/mass
+    CenterVol[0,2] = intg[3]/mass
     
     InertiaMatrix[0,0] = intg[5] + intg[6] - mass*((np.linalg.norm(CenterVol[0, 1:]))**2) # CenterVol([2 3])
     InertiaMatrix[1,1] = intg[4] + intg[6] - mass*((np.linalg.norm(CenterVol[0, 0:3:2]))**2) # CenterVol([3 1]) o CenterVol([1 3]) 
@@ -141,6 +141,8 @@ def TriMesh2DProperties(Tr = {}):
     for i, f in enumerate(Tr['ConnectivityList']):
         for j in range(3):
             Tr_mesh.vectors[i][j] = Tr['Points'][f[j],:]
+    # update normals
+    Tr_mesh.update_normals()
     
     # get triangle object name
     Properties['Name'] = f'{Tr=}'.partition('=')[0]
@@ -215,6 +217,52 @@ def plotDot(centers, color = 'k', r = 1.75):
     ax.plot_surface(x, y, z, color)
     
     return ax
+
+# -----------------------------------------------------------------------------
+def quickPlotRefSystem(CS = {}, length_arrow = 60):
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    
+    if 'V' in CS and not 'X' in CS:
+        CS['X'] = CS['V'][:,0]
+        CS['Y'] = CS['V'][:,1]
+        CS['Z'] = CS['V'][:,2]
+    
+    if 'X' in CS and 'Origin' in CS:
+        # plot X vector
+        ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
+                  CS['Origin'][0] + CS['X'][0], CS['Origin'][1] + CS['X'][1], CS['Origin'][2] + CS['X'][2], \
+                  scale=1, color='r', length = length_arrow)
+        # plot Y vector
+        ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
+                  CS['Origin'][0] + CS['Y'][0], CS['Origin'][1] + CS['Y'][1], CS['Origin'][2] + CS['Y'][2], \
+                  scale=1, color='g', length = length_arrow)
+        # plot Z vector
+        ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
+                  CS['Origin'][0] + CS['Z'][0], CS['Origin'][1] + CS['Z'][1], CS['Origin'][2] + CS['Z'][2], \
+                  scale=1, color='b', length = length_arrow)
+    else:
+        logging.exception('plotting AXES X0-Y0-Z0 (ijk) \n')
+        # plot X vector
+        ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
+                  CS['Origin'][0] + 1, CS['Origin'][1], CS['Origin'][2], \
+                  scale=1, color='r', length = length_arrow)
+        # plot Y vector
+        ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
+                  CS['Origin'][0], CS['Origin'][1] + 1, CS['Origin'][2], \
+                  scale=1, color='g', length = length_arrow)
+        # plot Z vector
+        ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
+                  CS['Origin'][0], CS['Origin'][1], CS['Origin'][2] + 1, \
+                  scale=1, color='b', length = length_arrow)
+            
+    ax.plotDot(CS['Origin'], 'k', 4*length_arrow/60)
+    
+    return ax
+
+
+
 
 
 

@@ -80,7 +80,7 @@ def load_mesh(a_tri_mesh_file):
             _, idx = np.unique(P, axis=0, return_index=True)
             Points = P[np.sort(idx)]
 
-            for pos, elem in enumerate(tri_geom.v0):
+            for pos, elem in enumerate(tmp_tri_geom.v0):
                 tmp = np.where(Points == elem)[0]
                 if len(tmp) > 3:
                     l0 = []
@@ -90,7 +90,7 @@ def load_mesh(a_tri_mesh_file):
                 else:
                     Vertex[pos,0] = tmp[0]
                     
-            for pos, elem in enumerate(tri_geom.v1):
+            for pos, elem in enumerate(tmp_tri_geom.v1):
                 tmp = np.where(Points == elem)[0]
                 if len(tmp) > 3:
                     l0 = []
@@ -100,7 +100,7 @@ def load_mesh(a_tri_mesh_file):
                 else:
                     Vertex[pos,1] = tmp[0]
 
-            for pos, elem in enumerate(tri_geom.v2):
+            for pos, elem in enumerate(tmp_tri_geom.v2):
                 tmp = np.where(Points == elem)[0]
                 if len(tmp) > 3:
                     l0 = []

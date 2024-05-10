@@ -273,16 +273,16 @@ def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE',
     if toes_name in triGeomBoneSet:
         print('  toes: ', 'N/A')
         
-    # ---- PELVIS -----
-    if 'pelvis' in triGeomBoneSet:
-        if algo_pelvis == 'STAPLE':
-            # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-            #     STAPLE_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
-        if algo_pelvis == 'Kai2014':
-            # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-            #     Kai2014_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    # # ---- PELVIS -----
+    # if 'pelvis' in triGeomBoneSet:
+    #     if algo_pelvis == 'STAPLE':
+    #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    #         #     STAPLE_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    #     if algo_pelvis == 'Kai2014':
+    #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    #         #     Kai2014_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
     
-    # ---- FEMUR -----
+    # # ---- FEMUR -----
     
     
     return 0

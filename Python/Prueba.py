@@ -16,6 +16,12 @@ from sklearn import preprocessing
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
+
+from Public_functions import load_mesh
+
+from algorithms import pelvis_guess_CS
+
+
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
@@ -138,6 +144,7 @@ triangle = {'Points': Points, 'ConnectivityList': Vertex}
 # Create the mesh
 new_mesh = mesh.Mesh(np.zeros(Vertex.shape[0], dtype=mesh.Mesh.dtype))
 for i, f in enumerate(Vertex):
+    # print(f)
     for j in range(3):
         new_mesh.vectors[i][j] = Points[f[j],:]
 
@@ -311,7 +318,31 @@ hull = ConvexHull(triangle['Points'])
 HullPoints = hull.points[hull.vertices]
 HullConect = hull.simplices
 
-Hulltriangle = {'Points': HullPoints, 'ConnectivityList': HullConect}
+# hull object doesn't remove unreferenced vertices
+# create a mask to re-index faces for only referenced vertices
+vid = np.sort(hull.vertices)
+mask = np.zeros(len(hull.points), dtype=np.int64)
+mask[vid] = np.arange(len(vid))
+# remove unreferenced vertices here
+faces = mask[hull.simplices].copy()
+# rescale vertices back to original size
+vertices = hull.points[vid].copy()
+
+
+
+# Hulltriangle = {'Points': HullPoints, 'ConnectivityList': HullConect}
+Hulltriangle = {'Points': vertices, 'ConnectivityList': faces}
+
+
+
+
+
+
+# Convert tiangulation dict to mesh object
+Tr_mesh = mesh.Mesh(np.zeros(Hulltriangle['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+for i, f in enumerate(Hulltriangle['ConnectivityList']):
+    for j in range(3):
+        Tr_mesh.vectors[i][j] = Hulltriangle['Points'][f[j],:]
 
 
 # aux = sum(TR.incenter.*repmat(Properties.Area,1,3),1)/Properties.TotalArea;
@@ -352,7 +383,8 @@ aux3 = np.dot(TMPtriangle['Points'],aux2)
 
 fig = plt.figure()
 ax = fig.add_subplot(projection = '3d')
-ax.plot_trisurf(TMPtriangle['Points'][:,0], TMPtriangle['Points'][:,1], TMPtriangle['Points'][:,2], triangles = TMPtriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False)
+ax.plot_trisurf(TMPtriangle['Points'][:,0], TMPtriangle['Points'][:,1], TMPtriangle['Points'][:,2], triangles = TMPtriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'red')
+ax.plot_trisurf(Hulltriangle['Points'][:,0], Hulltriangle['Points'][:,1], Hulltriangle['Points'][:,2], triangles = Hulltriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'b')
 
 plt.show()
 
@@ -369,4 +401,14 @@ ax.set_xlim([-1, 0.5])
 ax.set_ylim([-1, 1.5])
 ax.set_zlim([-1, 8])
 plt.show()
+
+#%% prueba de funcion pelvis_gess_CS
+
+pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
+
+RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri)
+
+
+
+
 

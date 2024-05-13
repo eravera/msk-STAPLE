@@ -80,7 +80,8 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     
     # smaller moment of inertia is normally the medio/lateral axis. It will be
     # updated anyway. It can be checked using D from TriInertiaPpties
-    Z0 = V_all[:,0]
+    Z0 = V_all[0]
+    Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     
     # compute convex hull
     hull = ConvexHull(pelvisTri['Points'])
@@ -123,20 +124,22 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     
     # vector pointing forward is X
     ind_X = np.argmax(np.abs(np.dot(V_all.T, LargestTriangle.get_unit_normals().T)))
-    X0 = V_all[:, ind_X]
+    X0 = V_all[ind_X]
+    X0 = np.reshape(X0,(X0.size, 1)) # convert 1d (3,) to 2d (3,1) vector 
     
     # Reorient X0 to point posterior to anterior
     anterior_v = LargestTriangle.centroids - CenterVol
-    X0 = preprocessing.normalize(np.dot(np.sign(np.dot(anterior_v,X0)),X0),axis=0)
+    X0 = preprocessing.normalize(np.sign(np.dot(anterior_v,X0))*X0, axis=0)
     
     # Y0 is just normal to X0 and Y0 (direction non inportant for now)
     # NOTE: Z normally points medio-laterally, Y will be cranio-caudal.
     # Directions not established yet
-    Y0 = preprocessing.normalize(np.cross(Z0, X0))
+    Y0 = preprocessing.normalize(np.cross(Z0.T, X0.T)).T
     
     # transform the pelvis to the new set of inertial axes
-    Rot = np.transpose(np.array([X0, Y0, Z0]))
-    PelvisInertia, _, _ = TriChangeCS(pelvisTri, Rot, CenterVol)
+    Rot = np.array([X0, Y0, Z0])
+    Rot = np.squeeze(Rot)
+    PelvisInertia, _, _ = TriChangeCS(pelvisTri, Rot.T, CenterVol)
     
     # get points that could be on iliac crests
     L1y = np.max(PelvisInertia['Points'][:, 1])
@@ -169,18 +172,20 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     
     # upward vector (perpendicular to X0)
     upw_ini = preprocessing.normalize(P3 - CenterVol)
-    upw = upw_ini - (np.dot(np.dot(upw_ini, X0), X0))
+    upw = upw_ini.T - (np.dot(upw_ini, X0)*X0)
     
     # vector pointing upward is Z
     ind_Z = np.argmax(np.abs(np.dot(V_all.T, upw)))
     Z0 = V_all[:, ind_Z]
-    Z0 = preprocessing.normalize(np.dot(np.sign(np.dot(upw,Z0)),Z0),axis=0)
+    Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector 
+    Z0 = preprocessing.normalize(np.sign(np.dot(upw.T,Z0))*Z0, axis=0)
     
     # Until now I have used GIBOC convention, now I build the ISB one!
     # X0 = X0_ISB, Z0 = Y_ISB
-    RotPseudoISB2Glob[:,0] = X0
-    RotPseudoISB2Glob[:,1] = Z0
-    RotPseudoISB2Glob[:,2] = np.cross(X0, Z0)
+    RotPseudoISB2Glob = np.zeros((3,3))
+    RotPseudoISB2Glob[:,0] = X0.T
+    RotPseudoISB2Glob[:,1] = Z0.T
+    RotPseudoISB2Glob[:,2] = np.cross(X0.T, Z0.T)
     
     # export markers
     BL['ICT1'] = P1
@@ -196,17 +201,17 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
         ax1.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
                          triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
         # plot X0 arrow
-        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
-                  CenterVol[0] + X0[0], CenterVol[1] + X0[1], CenterVol[2] + X0[2], \
-                  scale=1, color='r', length = 60)
+        ax1.quiver(CenterVol[0][0], CenterVol[0][1], CenterVol[0][2], \
+                  CenterVol[0][0] + X0[0]*60, CenterVol[0][1] + X0[1]*60, CenterVol[0][2] + X0[2]*60, \
+                  color='r', length = 60)
         # plot Y0 arrow
-        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
-                  CenterVol[0] + Y0[0], CenterVol[1] + Y0[1], CenterVol[2] + Y0[2], \
-                  scale=1, color='g', length = 60)
+        ax1.quiver(CenterVol[0][0], CenterVol[0][1], CenterVol[0][2], \
+                  CenterVol[0][0] + Y0[0]*60, CenterVol[0][1] + Y0[1]*60, CenterVol[0][2] + Y0[2]*60, \
+                  color='g', length = 60)
         # plot Z0 arrow
-        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
-                  CenterVol[0] + Z0[0], CenterVol[1] + Z0[1], CenterVol[2] + Z0[2], \
-                  scale=1, color='b', length = 60)
+        ax1.quiver(CenterVol[0][0], CenterVol[0][1], CenterVol[0][2], \
+                  CenterVol[0][0] + Z0[0]*60, CenterVol[0][1] + Z0[1]*60, CenterVol[0][2] + Z0[2]*60, \
+                  color='b', length = 60)
         
         ax1.set_title('X0 should be pointing anteriorly - no interest in other axes')
         
@@ -217,11 +222,11 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
         ax2.plot_trisurf(PelvisInertia['Points'][:,0], PelvisInertia['Points'][:,1], PelvisInertia['Points'][:,2], \
                          triangles = PelvisInertia['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
         # plot i unit vector
-        ax2.quiver(0, 0, 0, 1, 0, 0, scale=1, color='r', length = 60)
+        ax2.quiver(0, 0, 0, 1, 0, 0, color='r', length = 60)
         # plot j unit vector
-        ax2.quiver(0, 0, 0, 0, 1, 0, scale=1, color='g', length = 60)
+        ax2.quiver(0, 0, 0, 0, 1, 0, color='g', length = 60)
         # plot k unit vector
-        ax2.quiver(0, 0, 0, 0, 0, 1, scale=1, color='b', length = 60)
+        ax2.quiver(0, 0, 0, 0, 0, 1, color='b', length = 60)
         
         ax2.set_title('Check axes of inertia orientation')
         
@@ -232,9 +237,9 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
         ax3.plot_trisurf(PelvisInertia['Points'][:,0], PelvisInertia['Points'][:,1], PelvisInertia['Points'][:,2], \
                          triangles = PelvisInertia['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
         # plot landmark 1 in ASIS
-        ax3.plotDot(PelvisInertia['Points'][ind_P1,:], 'k', 7)
+        plotDot(PelvisInertia['Points'][ind_P1,:], ax3, 'g', 7)
         # plot landmark 2 in ASIS
-        ax3.plotDot(PelvisInertia['Points'][ind_P2,:], 'k', 7)
+        plotDot(PelvisInertia['Points'][ind_P2,:], ax3, 'g', 7)
                 
         ax3.set_title('Points should be external points in the iliac wings (inertia ref syst)')
         

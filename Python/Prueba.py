@@ -21,6 +21,8 @@ from Public_functions import load_mesh
 
 from algorithms import pelvis_guess_CS
 
+from GIBOC_core import plotDot
+
 
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
@@ -381,34 +383,36 @@ print(normalized_arr)
 aux3 = np.dot(TMPtriangle['Points'],aux2)
 
 
-fig = plt.figure()
-ax = fig.add_subplot(projection = '3d')
-ax.plot_trisurf(TMPtriangle['Points'][:,0], TMPtriangle['Points'][:,1], TMPtriangle['Points'][:,2], triangles = TMPtriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'red')
-ax.plot_trisurf(Hulltriangle['Points'][:,0], Hulltriangle['Points'][:,1], Hulltriangle['Points'][:,2], triangles = Hulltriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'b')
+# fig = plt.figure()
+# ax = fig.add_subplot(projection = '3d')
+# ax.plot_trisurf(TMPtriangle['Points'][:,0], TMPtriangle['Points'][:,1], TMPtriangle['Points'][:,2], triangles = TMPtriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'red')
+# ax.plot_trisurf(Hulltriangle['Points'][:,0], Hulltriangle['Points'][:,1], Hulltriangle['Points'][:,2], triangles = Hulltriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'b')
 
-plt.show()
+# plt.show()
 
 
 
-soa = np.array([[0, 0, 1, 1, -2, 0], [0, 0, 2, 1, 1, 0],
-                [0, 0, 3, 2, 1, 0], [0, 0, 4, 0.5, 0.7, 0]])
+# soa = np.array([[0, 0, 1, 1, -2, 0], [0, 0, 2, 1, 1, 0],
+#                 [0, 0, 3, 2, 1, 0], [0, 0, 4, 0.5, 0.7, 0]])
 
-X, Y, Z, U, V, W = zip(*soa)
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.quiver(X, Y, Z, U, V, W)
-ax.set_xlim([-1, 0.5])
-ax.set_ylim([-1, 1.5])
-ax.set_zlim([-1, 8])
-plt.show()
+# X, Y, Z, U, V, W = zip(*soa)
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# ax.quiver(X, Y, Z, U, V, W)
+# ax.set_xlim([-1, 0.5])
+# ax.set_ylim([-1, 1.5])
+# ax.set_zlim([-1, 8])
+# plt.show()
 
 #%% prueba de funcion pelvis_gess_CS
 
-pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
+# pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
+pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
 
-RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri)
+RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 1)
 
 
+# plotDot(TMPtriangle['Points'][10,:], 'k', 7)
 
 
 

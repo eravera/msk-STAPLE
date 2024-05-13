@@ -69,7 +69,10 @@ def TriInertiaPpties(Tr = {}):
     #     logging.exception('The inertia properties are for hole-free triangulations. \n')
     #     logging.exception(' Close your mesh before use, try with TriFillPlanarHoles. \n')
     #     logging.exception(' For 2D mesh use TriMesh2DProperties. \n')
-        
+    
+    # update normals
+    tmp_mesh.update_normals()
+    
     PseudoCenter = np.mean(Points, 0)
     Nodes = Points - PseudoCenter
            
@@ -119,7 +122,7 @@ def TriInertiaPpties(Tr = {}):
     
     InertiaMatrix[0,1] = -(intg[7] - mass*(CenterVol[0, 0]*CenterVol[0, 1]))
     InertiaMatrix[1,2] = -(intg[8] - mass*(CenterVol[0, 1]*CenterVol[0, 2]))
-    InertiaMatrix[2,0] = -(intg[9] - mass*(CenterVol[0, 2]*CenterVol[0, 0]))
+    InertiaMatrix[0,2] = -(intg[9] - mass*(CenterVol[0, 2]*CenterVol[0, 0]))
     
     i_lower = np.tril_indices(3, -1)
     InertiaMatrix[i_lower] = InertiaMatrix.T[i_lower] # make the matrix symmetric
@@ -127,6 +130,11 @@ def TriInertiaPpties(Tr = {}):
     CenterVol += PseudoCenter.T
     
     eigValues, eigVctrs = np.linalg.eig(InertiaMatrix)
+    # sort the resulting vector in descending order
+    idx = eigValues.argsort()
+    eigValues = eigValues[idx]
+    eigVctrs = eigVctrs[:,idx]
+    
     D = np.diag(eigValues)
     
     return eigVctrs, CenterVol, InertiaMatrix, D, mass 
@@ -178,9 +186,9 @@ def TriChangeCS(Tr = {}, V = np.zeros((3,3)), T = np.zeros(3)):
     TrNewCS = {}
     # If new basis matrices and translation vector is not provided the PIA of
     # the shape are calculated to move it to it.
-    if np.norm(V) == 0 and np.norm(T) == 0:
+    if np.linalg.norm(V) == 0 and np.linalg.norm(T) == 0:
         V, T = TriInertiaPpties(Tr)
-    elif np.norm(V) != 0 and np.norm(T) == 0:
+    elif np.linalg.norm(V) != 0 and np.linalg.norm(T) == 0:
         logging.exception('Wrong number of input argument, 1 move to PIA CS, 3 move to CS defined by V and T \n')
     
     # Translate the point by T
@@ -201,10 +209,10 @@ def TriChangeCS(Tr = {}, V = np.zeros((3,3)), T = np.zeros(3)):
 #%% ---------------------------------------------------------------------------
 # PlotFun
 # -----------------------------------------------------------------------------
-def plotDot(centers, color = 'k', r = 1.75):
+def plotDot(centers, ax, color = 'k', r = 1.75):
     
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(projection='3d')
     
     # Make data
     u = np.linspace(0, 2 * np.pi, 50)
@@ -214,7 +222,7 @@ def plotDot(centers, color = 'k', r = 1.75):
     z = r * np.outer(np.ones(np.size(u)), np.cos(v)) + centers[0]
     
     # Plot the surface
-    ax.plot_surface(x, y, z, color)
+    ax.plot_surface(x, y, z, color = color)
     
     return ax
 

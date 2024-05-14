@@ -80,11 +80,11 @@ def TriInertiaPpties(Tr = {}):
 
     intg = np.zeros(10)
     
-    for trian in tmp_mesh.vectors:
+    for trian in Elmts:
         # vertices of elements #trian
-        P1 = trian[0]
-        P2 = trian[1]
-        P3 = trian[2]
+        P1 = Nodes[trian[0]]
+        P2 = Nodes[trian[1]]
+        P3 = Nodes[trian[2]]
         # Get cross product
         d = np.cross(P2 - P1, P3 - P1)
         
@@ -137,7 +137,7 @@ def TriInertiaPpties(Tr = {}):
     
     D = np.diag(eigValues)
     
-    return eigVctrs, CenterVol, InertiaMatrix, D, mass 
+    return eigVctrs.T, CenterVol.T, InertiaMatrix, D, mass 
 
 # -----------------------------------------------------------------------------
 def TriMesh2DProperties(Tr = {}):
@@ -192,7 +192,7 @@ def TriChangeCS(Tr = {}, V = np.zeros((3,3)), T = np.zeros(3)):
         logging.exception('Wrong number of input argument, 1 move to PIA CS, 3 move to CS defined by V and T \n')
     
     # Translate the point by T
-    Pts_T = Tr['Points'] - T
+    Pts_T = Tr['Points'] - T.T
     
     # Rotate the points with V
     Pts_T_R = np.dot(Pts_T,V)

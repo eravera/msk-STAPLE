@@ -409,7 +409,7 @@ aux3 = np.dot(TMPtriangle['Points'],aux2)
 # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
 pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
 
-RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 1)
+RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
 
 
 # plotDot(TMPtriangle['Points'][10,:], 'k', 7)

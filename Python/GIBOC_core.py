@@ -202,7 +202,41 @@ def TriChangeCS(Tr = {}, V = np.zeros((3,3)), T = np.zeros(3)):
     
     return TrNewCS, V, T
 
+# -----------------------------------------------------------------------------
+def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
+    # -------------------------------------------------------------------------
+    # Remove unnecessary Node and Renumber the elements accordingly 
+    # 
+    # Inputs:
+    # TR: A triangulation dict with n Elements
+    # ElmtsKept: A nx1 array of index of the rows of kept elments, or a
+    # binary indicating kept Elements
+    # NodesKept: ID of kept nodes of corresponding to TR connectibity list OR 
+    # list of nodes coordinates
+    TRout = {}
+    NodesIDKept = []
+    if not NodesKept:
 
+        if np.sum(np.mod(NodesKept, 1)) == 0: # NodesID given
+            NodesIDKept = NodesKept
+        else: # Nodes Coordinates given
+            NodesIDKept = [np.where(TR['Points'] == coord)[0][0] for coord in NodesKept]
+    
+    if not ElmtsKept:
+        print('ENTRE!!!')
+        tmp_ElmtsKept = []
+        for nID in NodesIDKept:
+            tmp_ElmtsKept += [pos for pos, val in enumerate(TR['ConnectivityList']) if nID in val]
+        ElmtsKept = list(np.unique(tmp_ElmtsKept))
+        
+    PointsKept = TR['Points'][NodesKept]
+    
+        
+    TRout['Points'] = TR['Points'][NodesKept]
+    
+    
+    
+    return TRout
 
 
 
@@ -210,27 +244,23 @@ def TriChangeCS(Tr = {}, V = np.zeros((3,3)), T = np.zeros(3)):
 # PlotFun
 # -----------------------------------------------------------------------------
 def plotDot(centers, ax, color = 'k', r = 1.75):
-    
-    # fig = plt.figure()
-    # ax = fig.add_subplot(projection='3d')
-    
-    # Make data
-    u = np.linspace(0, 2 * np.pi, 50)
-    v = np.linspace(0, np.pi, 50)
-    x = r * np.outer(np.cos(u), np.sin(v)) + centers[0]
-    y = r * np.outer(np.sin(u), np.sin(v)) + centers[1]
-    z = r * np.outer(np.ones(np.size(u)), np.cos(v)) + centers[0]
+        
+    # Create a sphere
+    phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+    x = r*np.sin(phi)*np.cos(theta)
+    y = r*np.sin(phi)*np.sin(theta)
+    z = r*np.cos(phi)
     
     # Plot the surface
-    ax.plot_surface(x, y, z, color = color)
+    ax.plot_surface(x + centers[0], y + centers[1], z + centers[2], color = color)
     
     return ax
 
 # -----------------------------------------------------------------------------
-def quickPlotRefSystem(CS = {}, length_arrow = 60):
+def quickPlotRefSystem(CS, ax, length_arrow = 60):
     
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(projection='3d')
     
     if 'V' in CS and not 'X' in CS:
         CS['X'] = CS['V'][:,0]
@@ -240,32 +270,32 @@ def quickPlotRefSystem(CS = {}, length_arrow = 60):
     if 'X' in CS and 'Origin' in CS:
         # plot X vector
         ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
-                  CS['Origin'][0] + CS['X'][0], CS['Origin'][1] + CS['X'][1], CS['Origin'][2] + CS['X'][2], \
-                  scale=1, color='r', length = length_arrow)
+                  CS['X'][0], CS['X'][1], CS['X'][2], \
+                  color='r', length = length_arrow)
         # plot Y vector
         ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
-                  CS['Origin'][0] + CS['Y'][0], CS['Origin'][1] + CS['Y'][1], CS['Origin'][2] + CS['Y'][2], \
-                  scale=1, color='g', length = length_arrow)
+                  CS['Y'][0], CS['Y'][1], CS['Y'][2], \
+                  color='g', length = length_arrow)
         # plot Z vector
         ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
-                  CS['Origin'][0] + CS['Z'][0], CS['Origin'][1] + CS['Z'][1], CS['Origin'][2] + CS['Z'][2], \
-                  scale=1, color='b', length = length_arrow)
+                  CS['Z'][0], CS['Z'][1], CS['Z'][2], \
+                  color='b', length = length_arrow)
     else:
         logging.exception('plotting AXES X0-Y0-Z0 (ijk) \n')
         # plot X vector
         ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
-                  CS['Origin'][0] + 1, CS['Origin'][1], CS['Origin'][2], \
-                  scale=1, color='r', length = length_arrow)
+                  1, 0, 0, \
+                  color='r', length = length_arrow)
         # plot Y vector
         ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
-                  CS['Origin'][0], CS['Origin'][1] + 1, CS['Origin'][2], \
-                  scale=1, color='g', length = length_arrow)
+                  0, 1, 0, \
+                  color='g', length = length_arrow)
         # plot Z vector
         ax.quiver(CS['Origin'][0], CS['Origin'][1], CS['Origin'][2], \
-                  CS['Origin'][0], CS['Origin'][1], CS['Origin'][2] + 1, \
-                  scale=1, color='b', length = length_arrow)
+                  0, 0, 1, \
+                  color='b', length = length_arrow)
             
-    ax.plotDot(CS['Origin'], 'k', 4*length_arrow/60)
+    plotDot(CS['Origin'], ax, 'k', 4*length_arrow/60)
     
     return ax
 

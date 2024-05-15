@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 from Public_functions import load_mesh
 
-from algorithms import pelvis_guess_CS
+from algorithms import pelvis_guess_CS, STAPLE_pelvis
 
 from GIBOC_core import plotDot
 
@@ -409,7 +409,9 @@ aux3 = np.dot(TMPtriangle['Points'],aux2)
 # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
 pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
 
-RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
+# RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
+
+STAPLE_pelvis(pelvisTri)
 
 
 # plotDot(TMPtriangle['Points'][10,:], 'k', 7)

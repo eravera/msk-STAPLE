@@ -33,7 +33,8 @@ from GIBOC_core import TriInertiaPpties, \
                         TriMesh2DProperties, \
                          TriChangeCS, \
                           plotDot, \
-                           quickPlotRefSystem
+                           quickPlotRefSystem, \
+                            TriReduceMesh
 
 #%% ---------------------------------------------------------------------------
 # PRIVATE
@@ -195,28 +196,33 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
         
         # Figure 1: X0 should be pointing anteriorly-no interest in other axes
         fig = plt.figure(1)
-        ax1 = fig.add_subplot(projection = '3d')
+        ax1 = fig.add_subplot(111, projection = '3d')
         # plot mesh
         ax1.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
                          triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
         # plot X0 arrow
-        ax1.quiver(CenterVol[0][0], CenterVol[0][1], CenterVol[0][2], \
-                  CenterVol[0][0]*(1 + X0[0]), CenterVol[0][1]*(1 + X0[1]), CenterVol[0][2]*(1 + X0[2]), \
+        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  X0[0], X0[1], X0[2], \
                   color='r', length = 60)
         # plot Y0 arrow
-        ax1.quiver(CenterVol[0][0], CenterVol[0][1], CenterVol[0][2], \
-                  CenterVol[0][0]*(1 + Y0[0]), CenterVol[0][1]*(1 + Y0[1]), CenterVol[0][2]*(1 + Y0[2]), \
+        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  Y0[0], Y0[1], Y0[2], \
                   color='g', length = 60)
         # plot Z0 arrow
-        ax1.quiver(CenterVol[0][0], CenterVol[0][1], CenterVol[0][2], \
-                  CenterVol[0][0]*(1 + Z0[0]), CenterVol[0][1]*(1 + Z0[1]), CenterVol[0][2]*(1 + Z0[2]), \
+        ax1.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  tmp_Z0[0], tmp_Z0[1], tmp_Z0[2], \
                   color='b', length = 60)
+        
+        #label axes 
+        ax1.set_xlabel('X') 
+        ax1.set_ylabel('Y') 
+        ax1.set_zlabel('Z')  
         
         ax1.set_title('X0 should be pointing anteriorly - no interest in other axes')
         
         # Figure 2: Check axes of inertia orientation
         fig = plt.figure(2)
-        ax2 = fig.add_subplot(projection = '3d')
+        ax2 = fig.add_subplot(111, projection = '3d')
         # plot mesh
         ax2.plot_trisurf(PelvisInertia['Points'][:,0], PelvisInertia['Points'][:,1], PelvisInertia['Points'][:,2], \
                          triangles = PelvisInertia['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
@@ -227,11 +233,16 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
         # plot k unit vector
         ax2.quiver(0, 0, 0, 0, 0, 1, color='b', length = 60)
         
+        #label axes 
+        ax2.set_xlabel('X') 
+        ax2.set_ylabel('Y') 
+        ax2.set_zlabel('Z')  
+        
         ax2.set_title('Check axes of inertia orientation')
         
         # Figure 3: Points should be external points in the iliac wings (inertia ref syst)
         fig = plt.figure(3)
-        ax3 = fig.add_subplot(projection = '3d')
+        ax3 = fig.add_subplot(111, projection = '3d')
         # plot mesh
         ax3.plot_trisurf(PelvisInertia['Points'][:,0], PelvisInertia['Points'][:,1], PelvisInertia['Points'][:,2], \
                          triangles = PelvisInertia['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
@@ -239,31 +250,41 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
         plotDot(PelvisInertia['Points'][ind_P1,:], ax3, 'g', 7)
         # plot landmark 2 in ASIS
         plotDot(PelvisInertia['Points'][ind_P2,:], ax3, 'g', 7)
-                
+        
+        #label axes 
+        ax3.set_xlabel('X') 
+        ax3.set_ylabel('Y') 
+        ax3.set_zlabel('Z')  
+        
         ax3.set_title('Points should be external points in the iliac wings (inertia ref syst)')
         
         # Figure 4: Points should be external points in the iliac wings (glob ref syst)
         fig = plt.figure(4)
-        ax4 = fig.add_subplot(projection = '3d')
+        ax4 = fig.add_subplot(111, projection = '3d')
         # plot mesh
         ax4.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
                          triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False)
         # plot landmark 1 in ASIS
-        ax4.plotDot(P1, 'k', 7)
+        plotDot(P1, ax4, 'k', 7)
         # plot landmark 2 in ASIS
-        ax4.plotDot(P2, 'k', 7)
+        plotDot(P2, ax4, 'k', 7)
         # plot landmark 3: ASIS midpoint
-        ax4.plotDot(P3, 'k', 7)
+        plotDot(P3, ax4, 'k', 7)
         # plot Z0 arrow
         ax4.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
-                  CenterVol[0] + Z0[0], CenterVol[1] + Z0[1], CenterVol[2] + Z0[2], \
-                  scale=1, color='b', length = 60)
-                        
+                  Z0[0], Z0[1], Z0[2], \
+                  color='b', length = 60)
+        
+        #label axes 
+        ax4.set_xlabel('X') 
+        ax4.set_ylabel('Y') 
+        ax4.set_zlabel('Z')  
+                
         ax4.set_title('Points should be external points in the iliac wings (glob ref syst)')
         
         # Figure 5: plot pelvis, convex hull, largest identified triangle and ISB pelvis reference system
         fig = plt.figure(5)
-        ax5 = fig.add_subplot(projection = '3d')
+        ax5 = fig.add_subplot(111, projection = '3d')
         
         tmp = {}
         tmp['V'] = RotPseudoISB2Glob
@@ -273,14 +294,19 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
                          triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, color = 'b', shade=False)
         ax5.plot_trisurf(PelvisConvHull['Points'][:,0], PelvisConvHull['Points'][:,1], PelvisConvHull['Points'][:,2], \
                          triangles = PelvisConvHull['ConnectivityList'], edgecolor=[[0.3,0.3,0.3]], linewidth=1.0, alpha=0.2, color = 'c', shade=False)
-        ax5.plot_trisurf(tmp_LargestTriangle['Points'][:,0], tmp_LargestTriangle['Points'][:,1], tmp_LargestTriangle['Points'][:,2], \
-                         triangles = tmp_LargestTriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.8, color = 'r', shade=False)
+        ax5.plot_trisurf(LargestTriangle['Points'][:,0], LargestTriangle['Points'][:,1], LargestTriangle['Points'][:,2], \
+                         triangles = LargestTriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.8, color = 'r', shade=False)
         # plot axes of pelvis (ISB)
-        ax5.quickPlotRefSystem(tmp)
+        quickPlotRefSystem(tmp, ax5)
         # plot landmarks
-        ax5.plotDot(P1, 'k', 7)
-        ax5.plotDot(P2, 'k', 7)
-        ax5.plotDot(P3, 'k', 7)
+        plotDot(P1, ax5, 'k', 7)
+        plotDot(P2, ax5, 'k', 7)
+        plotDot(P3, ax5, 'k', 7)
+        
+        #label axes 
+        ax5.set_xlabel('X') 
+        ax5.set_ylabel('Y') 
+        ax5.set_zlabel('Z')  
         # Remove grid
         ax5.grid(False)
     # END debugs Plots -----
@@ -321,12 +347,38 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     # ---------------------------------------------------
     
     # inertial axes
-    _, CenterVol, InertiaMatrix, D =  TriInertiaPpties(Pelvis)
+    _, CenterVol, InertiaMatrix, D, _ =  TriInertiaPpties(Pelvis)
     
     # Modification of initial guess of CS direction [JB]
     print('Analyzing pelvis geometry...')
     
-    # RotPseudoISB2Glob, LargestTriangle = pelvis_guess_CS(Pelvis, debug_plots)
+    RotPseudoISB2Glob, LargestTriangle, _ = pelvis_guess_CS(Pelvis, debug_plots)
+    
+    # Get the RPSIS and LPSIS raw BoneLandmarks (BL)
+    PelvisPseudoISB, _, _ = TriChangeCS(Pelvis, RotPseudoISB2Glob, CenterVol)
+    
+    # get the bony landmarks
+    # Along an axis oriented superiorly and a bit on the right we find
+    # projected on this axis succesively RASIS, LASIS then SYMP
+    print('Landmarking...')
+    
+    # project vectors on Z (SYMP is the minimal one)
+    I = np.argsort(np.dot(np.abs(LargestTriangle['Points'] - CenterVol.T), RotPseudoISB2Glob[2]))
+    ASIS_inds = I[1:]
+    ind_RASIS = np.where(np.dot(LargestTriangle['Points'][ASIS_inds] - CenterVol.T, RotPseudoISB2Glob[2]) > 0)
+    ind_LASIS = np.where(np.dot(LargestTriangle['Points'][ASIS_inds] - CenterVol.T, RotPseudoISB2Glob[2]) < 0)
+    
+    SYMP = LargestTriangle['Points'][I[0]]
+    RASIS = LargestTriangle['Points'][ASIS_inds[ind_RASIS]]
+    LASIS = LargestTriangle['Points'][ASIS_inds[ind_LASIS]]
+    
+    # Get the Posterior, Superior, Right eigth of the pelvis
+    Nodes_RPSIS = list(np.where((PelvisPseudoISB['Points'][:,0] < 0) & \
+                           (PelvisPseudoISB['Points'][:,1] > 0) & \
+                           (PelvisPseudoISB['Points'][:,2] > 0))[0])
+    
+    Pelvis_RPSIS = TriReduceMesh(Pelvis, [], Nodes_RPSIS)
+    
     
     
     

@@ -34,7 +34,11 @@ from GIBOC_core import TriInertiaPpties, \
                          TriChangeCS, \
                           plotDot, \
                            quickPlotRefSystem, \
-                            TriReduceMesh
+                            TriReduceMesh, \
+                             plotTriangLight, \
+                              plotBoneLandmarks
+
+from opensim_tools import computeXYZAngleSeq
 
 #%% ---------------------------------------------------------------------------
 # PRIVATE
@@ -100,7 +104,7 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     #  ---------------
     PelvisConvHull = {'Points': vertices, 'ConnectivityList': faces}
     
-    #%% Get the Post-Ant direction by finding the largest triangle of the pelvis
+    # Get the Post-Ant direction by finding the largest triangle of the pelvis
     # and checking the inertial axis that more closely aligns with it
     
     # Find the largest triangle on the projected Convex Hull
@@ -314,12 +318,35 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     return RotPseudoISB2Glob, LargestTriangle, BL
 
 
-
-
+#%% ---------------------------------------------------------------------------
+# 
+# -----------------------------------------------------------------------------
+def CS_pelvis_ISB(RASIS, LASIS, RPSIS, LPSIS):
+    # -------------------------------------------------------------------------
+    # defining the ref system (global)
+    # with origin at midpoint of ASIS
+    V = np.zeros((3,3))
+    
+    Z = preprocessing.normalize(RASIS-LASIS, axis=0)
+    
+    temp_X = ((RASIS+LASIS)/2) - ((RPSIS+LPSIS)/2)
+    pseudo_X = preprocessing.normalize(temp_X, axis=0)
+    
+    Y = np.cross(Z, pseudo_X, axis=0)
+    X = np.cross(Y, Z, axis=0)
+    
+    V[0] = X.T
+    V[1] = Y.T
+    V[2] = Z.T
+    
+    return V.T
 
 # -----------------------------------------------------------------------------
 def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0, in_mm = 1):
     # -------------------------------------------------------------------------
+    BCS = {}
+    JCS = {} 
+    PelvisBL = {}
     
     if in_mm == 1:
         dim_fact = 0.001
@@ -369,8 +396,9 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     ind_LASIS = np.where(np.dot(LargestTriangle['Points'][ASIS_inds] - CenterVol.T, RotPseudoISB2Glob[2]) < 0)
     
     SYMP = LargestTriangle['Points'][I[0]]
-    RASIS = LargestTriangle['Points'][ASIS_inds[ind_RASIS]]
-    LASIS = LargestTriangle['Points'][ASIS_inds[ind_LASIS]]
+    SYMP = np.reshape(SYMP,(SYMP.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    RASIS = LargestTriangle['Points'][ASIS_inds[ind_RASIS]].T
+    LASIS = LargestTriangle['Points'][ASIS_inds[ind_LASIS]].T
     
     # Get the Posterior, Superior, Right eigth of the pelvis
     Nodes_RPSIS = list(np.where((PelvisPseudoISB['Points'][:,0] < 0) & \
@@ -379,9 +407,75 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     
     Pelvis_RPSIS = TriReduceMesh(Pelvis, [], Nodes_RPSIS)
     
+    # Find the most posterior points in this eigth
+    Imin = np.argmin(np.dot(Pelvis_RPSIS['Points'], RotPseudoISB2Glob[0]))
+    RPSIS = Pelvis_RPSIS['Points'][Imin]
+    RPSIS = np.reshape(RPSIS,(RPSIS.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     
+    # Get the Posterior, Superior, Left eigth of the pelvis
+    Nodes_LPSIS = list(np.where((PelvisPseudoISB['Points'][:,0] < 0) & \
+                           (PelvisPseudoISB['Points'][:,1] > 0) & \
+                           (PelvisPseudoISB['Points'][:,2] < 0))[0])
     
+    Pelvis_LPSIS = TriReduceMesh(Pelvis, [], Nodes_LPSIS)
     
+    # Find the most posterior points in this eigth
+    Imin = np.argmin(np.dot(Pelvis_LPSIS['Points'], RotPseudoISB2Glob[0]))
+    LPSIS = Pelvis_LPSIS['Points'][Imin]
+    LPSIS = np.reshape(LPSIS,(LPSIS.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    
+    # check if bone landmarks are correctly identified or axes were incorrect
+    if np.linalg.norm(RASIS-LASIS) < np.linalg.norm(RPSIS-LPSIS):
+        # inform user
+        print('GIBOK_pelvis.')
+        print('Inter-ASIS distance is shorter than inter-PSIS distance. Better check manually.')
+        
+    # ISB reference system
+    PelvisOr = (RASIS+LASIS)/2.0
+    
+    # segment reference system
+    BCS['CenterVol'] = CenterVol
+    BCS['Origin'] = PelvisOr
+    BCS['InertiaMatrix'] = InertiaMatrix
+    BCS['V'] = CS_pelvis_ISB(RASIS, LASIS, RPSIS, LPSIS)
+    
+    # storing joint details
+    JCS['ground_pelvis'] = {}
+    JCS['ground_pelvis']['V'] = BCS['V']
+    JCS['ground_pelvis']['Origin'] = PelvisOr
+    JCS['ground_pelvis']['child_location'] = PelvisOr.T*dim_fact # [1x3] as in OpenSim
+    JCS['ground_pelvis']['child_orientation'] = computeXYZAngleSeq(BCS['V']) # [1x3] as in OpenSim
+    
+    # define hip parent
+    hip_name = 'hip_' + side_low
+    JCS[hip_name] = {}
+    JCS[hip_name]['parent_orientation'] = computeXYZAngleSeq(BCS['V'])
+    
+    # Export bone landmarks: [3x1] vectors
+    PelvisBL['RASIS'] = RASIS
+    PelvisBL['LASIS'] = LASIS
+    PelvisBL['RPSIS'] = RPSIS
+    PelvisBL['LPSIS'] = LPSIS
+    PelvisBL['SYMP'] = SYMP
+    
+    # debug plot
+    
+    if result_plots:
+        
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111, projection = '3d')
+        
+        ax1.set_title('STAPLE | bone: pelvis | side: ' + side_low)
+        
+        plotTriangLight(Pelvis, BCS, ax1)
+        quickPlotRefSystem(BCS, ax1)
+        quickPlotRefSystem(JCS['ground_pelvis'], ax1)
+        ax1.plot_trisurf(LargestTriangle['Points'][:,0], LargestTriangle['Points'][:,1], LargestTriangle['Points'][:,2], \
+                         triangles = LargestTriangle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.4, color = 'y', shade=False)
+        
+        # plot markers and labels
+        plotBoneLandmarks(PelvisBL, ax1, 1)
+        
     
     return 0
 

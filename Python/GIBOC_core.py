@@ -25,6 +25,7 @@ import logging
 from pykdtree.kdtree import KDTree
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib.colors import LightSource
 
 
 #%% ---------------------------------------------------------------------------
@@ -215,27 +216,31 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
     # list of nodes coordinates
     TRout = {}
     NodesIDKept = []
-    if not NodesKept:
-
+    if NodesKept:
         if np.sum(np.mod(NodesKept, 1)) == 0: # NodesID given
             NodesIDKept = NodesKept
         else: # Nodes Coordinates given
             NodesIDKept = [np.where(TR['Points'] == coord)[0][0] for coord in NodesKept]
-    
-    if not ElmtsKept:
-        print('ENTRE!!!')
+        
+        NodesIDKept = np.sort(NodesIDKept)
+        PointsKept = TR['Points'][NodesIDKept]
+        
+    if ElmtsKept:
+        for pos, val in enumerate(NodesIDKept):
+            ElmtsKept[ElmtsKept == val] = pos+1
+    else:
         tmp_ElmtsKept = []
-        for nID in NodesIDKept:
-            tmp_ElmtsKept += [pos for pos, val in enumerate(TR['ConnectivityList']) if nID in val]
-        ElmtsKept = list(np.unique(tmp_ElmtsKept))
+        for tri in TR['ConnectivityList']:
+            if set(tri).issubset(NodesIDKept):
+                tmp_ElmtsKept.append(tri)
+        ElmtsKept = np.array(tmp_ElmtsKept)
         
-    PointsKept = TR['Points'][NodesKept]
-    
+        for pos, val in enumerate(NodesIDKept):
+            ElmtsKept[ElmtsKept == val] = pos+1
+            
+    TRout['Points'] = PointsKept
+    TRout['ConnectivityList'] = ElmtsKept
         
-    TRout['Points'] = TR['Points'][NodesKept]
-    
-    
-    
     return TRout
 
 
@@ -244,7 +249,7 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
 # PlotFun
 # -----------------------------------------------------------------------------
 def plotDot(centers, ax, color = 'k', r = 1.75):
-        
+    # -------------------------------------------------------------------------
     # Create a sphere
     phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
     x = r*np.sin(phi)*np.cos(theta)
@@ -258,10 +263,8 @@ def plotDot(centers, ax, color = 'k', r = 1.75):
 
 # -----------------------------------------------------------------------------
 def quickPlotRefSystem(CS, ax, length_arrow = 60):
-    
-    # fig = plt.figure()
-    # ax = fig.add_subplot(projection='3d')
-    
+    # -------------------------------------------------------------------------
+        
     if 'V' in CS and not 'X' in CS:
         CS['X'] = CS['V'][:,0]
         CS['Y'] = CS['V'][:,1]
@@ -299,8 +302,65 @@ def quickPlotRefSystem(CS, ax, length_arrow = 60):
     
     return ax
 
+# -----------------------------------------------------------------------------
+def plotTriangLight(Triang = {}, CS = {}, ax = None, alpha = 0.7):
+    # -------------------------------------------------------------------------
+    if ax == None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection = '3d')
+           
+    # define the lighting
+    if CS:
+        # if there are no axes but there is a pose matrix, use the matrix as 
+        # reference
+        if not 'Y' in CS and 'V' in CS:
+            CS['X'] = CS['V'][0]
+            CS['Y'] = CS['V'][1]
+            CS['Z'] = CS['V'][2]
+        
+        # handle lighting of objects
+        # Create light source object.
+        angle = np.arccos(np.dot(CS['X'], CS['Z']))
+        ls = LightSource(azdeg=0, altdeg=angle)
+        # Shade data, creating an rgb array.
+        # rgb = ls.shade(Triang['Points'][:,2], plt.cm.RdYlBu)
+        shade = True
+    else:
+        shade = False
 
+    # Plot the triangulation object with grey color
+    ax.plot_trisurf(Triang['Points'][:,0], Triang['Points'][:,1], Triang['Points'][:,2], \
+                     triangles = Triang['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, color = 'grey', shade=shade)    
+    
+    # Remove grid
+    ax.grid(False)
+    
+    return ax
 
-
+# -----------------------------------------------------------------------------
+def plotBoneLandmarks(BLDict, ax, label_switch = 1):
+    # -------------------------------------------------------------------------
+    # Add point plots, and if required, labels to bone landmarks identified 
+    # throught the STAPLE analyses.
+    # 
+    # Inputs:
+    # BLDict - a Python dictionary with fields having as fields the name of 
+    # the bone landmarks and as values their coordinates (in global
+    # reference system).
+    # 
+    # label_switch - a binary switch that indicates if the bone landmark
+    # names will be added or not (as text) to the plot.
+    # 
+    # Outputs:
+    # none - the points are plotted on the current axes.
+    # -------------------------------------------------------------------------
+    
+    for curr_name in BLDict:
+        plotDot(BLDict[curr_name], ax, 'r', 7)
+        if label_switch:
+            ax.text(BLDict[curr_name][0][0],BLDict[curr_name][1][0],BLDict[curr_name][2][0], \
+                    curr_name, size=12, color='k')
+    
+    return ax
 
 

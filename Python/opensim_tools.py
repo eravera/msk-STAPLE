@@ -98,3 +98,39 @@ def writeModelGeometriesFolder(aTriGeomBoneSet, aGeomFolder = '.', aFileFormat =
     print('Stored ' + aFileFormat + ' files in folder ' + aGeomFolder)
     
     return 0
+
+# -----------------------------------------------------------------------------
+def computeXYZAngleSeq(aRotMat):
+    # -------------------------------------------------------------------------
+    # Convert a rotation matrix in the orientation vector used in OpenSim 
+    # (X-Y-Z axes rotation order).
+    # 
+    # Inputs:
+    # aRotMat - a rotation matrix, normally obtained writing as columns the
+    # axes of the body reference system, expressed in global reference
+    # system.
+    # 
+    # Outputs:
+    # orientation - the sequence of angles used in OpenSim to define the
+    # joint orientation. Sequence of rotation is X-Y-Z.
+    # -------------------------------------------------------------------------    
+    orientation = np.zeros((1,3))
+    
+    # fixed body sequence of angles from rot mat usable for orientation in OpenSim
+    beta = np.arctan2(aRotMat[0,2], np.sqrt(aRotMat[0,0]**2 + aRotMat[0,1]**2))
+    alpha = np.arctan2(-aRotMat[1,2]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
+    gamma = np.arctan2(-aRotMat[0,1]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
+    
+    # build a vector
+    orientation[0,0] = beta
+    orientation[0,1] = alpha
+    orientation[0,2] = gamma
+    
+    return orientation
+
+
+
+
+
+
+

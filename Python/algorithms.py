@@ -317,14 +317,57 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     
     return RotPseudoISB2Glob, LargestTriangle, BL
 
-
+# -----------------------------------------------------------------------------
+def femur_guess_CS(Femur, debug_plots = 1):
+    # Provide an informed guess of the femur orientation.
+    # 
+    # General Idea
+    # The idea is to exploit the fact that the distal epiphysis of the bone is
+    # relatively symmetrical relative to the diaphysis axis, while the one from
+    # the proximal epiphysis is not because of the femoral head.
+    # So if you deform the femur along the second principal inertial deirection
+    # which is relatively medial to lateral, the centroid of the distal
+    # epiphysis should be closer to the first principal inertia axis than the
+    # one from the proximal epiphysis.
+    # 
+    # Inputs:
+    # Femur - A MATLAB triangulation object of the complete femur.
+    # 
+    # debug_plots - enable plots used in debugging. Value: 1 or 0 (default).
+    # 
+    # Output:
+    # Z0 - A unit vector giving the distal to proximal direction.
+    # -------------------------------------------------------------------------
+    Z0 = np.zeros((3,1))
+    
+    # Get the principal inertia axis of the femur (potentially wrongly orientated)
+    V_all, CenterVol = TriInertiaPpties(Femur)
+    Z0 = V_all[0]
+    Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    Y0 = V_all[1]
+    Y0 = np.reshape(Y0,(Y0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    
+    # Deform the femur along the 2nd principal direction
+    Pts = Femur['Points'] - CenterVol
+    def_matrix = np.array([[1, 0, 0], [0, 2, 0], [0, 0, 1]])
+    Pts_deformed = (Pts*V_all)*def_matrix*V_all.T
+    Femur['Points'] = Pts_deformed + CenterVol
+    
+    # Get both epiphysis of the femur (10% of the length at both ends)
+    # Tricks : Here we use Z0 as the initial direction for
+    # TrEpi1, TrEpi2 = cutLongBoneMesh(Femur, Z0, 0.10)
+    
+    
+    
+    
+    return Z0
 #%% ---------------------------------------------------------------------------
 # 
 # -----------------------------------------------------------------------------
 def CS_pelvis_ISB(RASIS, LASIS, RPSIS, LPSIS):
-    # -------------------------------------------------------------------------
     # defining the ref system (global)
     # with origin at midpoint of ASIS
+    # -------------------------------------------------------------------------
     V = np.zeros((3,3))
     
     Z = preprocessing.normalize(RASIS-LASIS, axis=0)
@@ -477,5 +520,91 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
         plotBoneLandmarks(PelvisBL, ax1, 1)
         
     
-    return 0
+    return BCS, JCS, PelvisBL
 
+# -----------------------------------------------------------------------------
+def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_plots = 1, debug_plots = 0, in_mm = 1):
+    # Automatically define a reference system based on bone morphology by 
+    # fitting analytical shapes to the articular surfaces. It is normally used 
+    # within processTriGeomBoneSet.m in workflows to generate musculoskeletal 
+    # models. The GIBOC algorithm can also extract articular surfaces.
+    # 
+    # Inputs :
+    # femurTri - Dict of triangulation object representing a femur.
+    # 
+    # side_raw - a string indicating the body side. Valid options: 'R', 'r'  
+    # for the right side, 'L' and 'l' for the left side.
+    # 
+    # fit_method - a string indicating the name to assign to the OpenSim body.
+    # 
+    # result_plots - 
+    # 
+    # debug_plots - enable plots used in debugging. Value: 1 or 0 (default).
+    # 
+    # in_mm - (optional) indicates if the provided geometries are given in mm
+    # (value: 1) or m (value: 0). Please note that all tests and analyses
+    # done so far were performed on geometries expressed in mm, so this
+    # option is more a placeholder for future adjustments.
+    #
+    # Output :
+    # CS -
+    # 
+    # JCS - 
+    # 
+    # FemurBL - Dict containing the bony landmarks identified 
+    # on the bone geometries based on the defined reference systems. Each
+    # field is named like a landmark and contain its 3D coordinates.
+    # -------------------------------------------------------------------------
+    
+    if in_mm == 1:
+        dim_fact = 0.001
+    else:
+        dim_fact = 1
+    
+    # default algorithm: cylinder fitting (Modenese et al. JBiomech 2018)
+    if fit_method == '':
+        fit_method = 'cylinder'
+    
+    # get side id correspondent to body side 
+    _, side_low = bodySide2Sign(side_raw)
+    
+    # inform user about settings
+    print('---------------------')
+    print('   GIBOC - FEMUR   ')
+    print('---------------------')
+    print('* Body Side: ' + side_low.upper())
+    print('* Fit Method: ' + fit_method)
+    print('* Result Plots: ' + ['Off','On'][result_plots])
+    print('* Debug  Plots: ' + ['Off','On'][debug_plots])
+    print('* Triang Units: mm')
+    print('---------------------')
+    print('Initializing method...')
+    
+    # it is assumed that, even for partial geometries, the femoral bone is
+    # always provided as unique file. Previous versions of this function did
+    # use separated proximal and distal triangulations. Check Git history if
+    # you are interested in that.
+    # U_DistToProx = femur_guess_CS(femurTri, debug_plots)
+    
+    
+    
+    
+    
+    
+    
+    
+    return 0
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

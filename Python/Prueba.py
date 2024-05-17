@@ -408,12 +408,12 @@ aux3 = np.dot(TMPtriangle['Points'],aux2)
 #%% prueba de funcion pelvis_gess_CS
 
 # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
-pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
+# pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
 # pelvisTri = load_mesh(ruta + 'Python/pelvis_new.stl')
 
 # RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
 
-STAPLE_pelvis(pelvisTri)
+# STAPLE_pelvis(pelvisTri)
 
 
 # plotDot(TMPtriangle['Points'][10,:], 'k', 7)

@@ -25,6 +25,8 @@ import logging
 
 from Public_functions import load_mesh
 
+# from algorithms import STAPLE_pelvis
+
 # -----------------------------------------------------------------------------
 def inferBodySideFromAnatomicStruct(anat_struct):
     # -------------------------------------------------------------------------
@@ -276,13 +278,26 @@ def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE',
     # # ---- PELVIS -----
     # if 'pelvis' in triGeomBoneSet:
     #     if algo_pelvis == 'STAPLE':
-    #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-    #         #     STAPLE_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
-    #     if algo_pelvis == 'Kai2014':
-    #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-    #         #     Kai2014_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    #         BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    #             STAPLE_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    # #     if algo_pelvis == 'Kai2014':
+    # #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    # #         #     Kai2014_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    # elif 'pelvis_no_sacrum' in triGeomBoneSet:
+    #     if algo_pelvis == 'STAPLE':
+    #         BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    #             GIBOC_femur(triGeomBoneSet['pelvis_no_sacrum'], side, result_plots, debug_plots, in_mm)
+    # #     if algo_pelvis == 'Kai2014':
+    # #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    # #         #     Kai2014_pelvis(triGeomBoneSet['pelvis_no_sacrum'], side, result_plots, debug_plots, in_mm)
     
-    # # ---- FEMUR -----
+    # # # ---- FEMUR -----
+    # # if femur_name in triGeomBoneSet:
+    # #     if 'GIBOC' in femur_name:
+    # #         # BCS[femur_name], JCS[femur_name], BL[femur_name] = \
+    # #         #     GIBOC_femur(triGeomBoneSet['femur_name'], side, femur_name[6:], result_plots, debug_plots, in_mm)
+    
+    
     
     
     return 0

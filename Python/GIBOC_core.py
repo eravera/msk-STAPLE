@@ -30,6 +30,7 @@ from matplotlib.colors import LightSource
 
 #%% ---------------------------------------------------------------------------
 # SUBFUNTIONS
+# -----------------------------------------------------------------------------
 # TriangulationFun
 # -----------------------------------------------------------------------------
 def Subexpressions (w0 , w1 , w2):
@@ -242,6 +243,62 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
     TRout['ConnectivityList'] = ElmtsKept
         
     return TRout
+
+# -----------------------------------------------------------------------------
+# GeometricFun
+# -----------------------------------------------------------------------------
+def cutLongBoneMesh(TrLB, U_0 = np.reshape(np.array([0, 0, 1]),(3, 1)), L_ratio = 0.33):
+    # Separate the Mesh of long bone in two parts: a proximal and a distal one.
+    # 
+    # inputs :
+    # TrLB - The triangulation of a long bone
+    # U_0 - A unit vector defining the wanted distal to proximal 
+    # orientation of the principal direction
+    # L_ratio - The ratio of the bone length kept to define the prox. 
+    # and distal part of the long bone.
+    # 
+    # Outputs:
+    # TrProx - Triangulation dict of the proximal part of the long bone
+    # TrDist - Triangulation of the distal part of the long bone
+    # -------------------------------------------------------------------------
+    TrProx = {}
+    TrDist = {}
+    
+    if U_0 == np.array([0, 0, 1]):
+        print('Distal to proximal direction of long bone is based on the' + \
+        ' assumption that the bone distal to proximal axis is oriented' + \
+        ' +Z_CT or +Z_MRI vector of the imaging system. If it`s not' + \
+        ' the case the results might be wrong.')
+    
+    # Convert tiangulation dict to mesh object --------
+    tmp_TrLB = mesh.Mesh(np.zeros(TrLB['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(TrLB['ConnectivityList']):
+        for j in range(3):
+            tmp_TrLB.vectors[i][j] = TrLB['Points'][f[j],:]
+    # update normals
+    tmp_TrLB.update_normals()
+    # ------------------------------------------------
+    
+    V_all, _ = TriInertiaPpties(TrLB)
+    
+    # Initial estimate of the Distal-to-Proximal (DP) axis Z0
+    Z0 = V_all[0]
+    Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    
+    # Reorient Z0 according to U_0
+    Z0 *= np.sign(np.dot(U_0, Z0))
+    
+    # Fast and dirty way to split the bone
+    LengthBone = np.max(TrLB['Points']*Z0) - np.min(TrLB['Points']*Z0)
+    
+    # create the proximal bone part
+    Zprox = np.max(TrLB['Points']*Z0) - L_ratio*LengthBone
+    ElmtsProx = np.where(tmp_TrLB.centroids*Z0 > Zprox)
+    TrProx = TriReduceMesh(TrLB, ElmtsProx)
+    # TrProx = TriFillPlanarHoles( TrProx )
+    
+    return TrProx, TrDist
+    
 
 
 

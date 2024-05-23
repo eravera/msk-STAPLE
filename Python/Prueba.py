@@ -21,7 +21,7 @@ from Public_functions import load_mesh
 
 from algorithms import pelvis_guess_CS, STAPLE_pelvis
 
-from GIBOC_core import plotDot
+from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -417,6 +417,158 @@ aux3 = np.dot(TMPtriangle['Points'],aux2)
 
 
 # plotDot(TMPtriangle['Points'][10,:], 'k', 7)
+
+
+#%% prueba de funcion femur_guess_CS
+
+# reduce number of triangles
+
+# tri_geom = mesh.Mesh.from_file(ruta + 'bone_datasets/TLEM2/stl/femur_r.stl')
+
+# Faces = tri_geom.vectors
+# P = Faces.reshape(-1, 3)
+# Vertex = np.zeros(np.shape(tri_geom.v0), dtype=np.int64)
+
+# _, idx = np.unique(P, axis=0, return_index=True)
+# Points = P[np.sort(idx)]
+
+# for pos, elem in enumerate(tri_geom.v0):
+#     tmp = np.where(Points == elem)[0]
+#     if len(tmp) > 3:
+#         l0 = []
+#         l0 = list(tmp)
+#         tmp1 = [x for x in l0 if l0.count(x) > 1]
+#         Vertex[pos,0] = tmp1[0]
+#     else:
+#         Vertex[pos,0] = tmp[0]
+        
+# for pos, elem in enumerate(tri_geom.v1):
+#     tmp = np.where(Points == elem)[0]
+#     if len(tmp) > 3:
+#         l0 = []
+#         l0 = list(tmp)
+#         tmp1 = [x for x in l0 if l0.count(x) > 1]
+#         Vertex[pos,1] = tmp1[0]
+#     else:
+#         Vertex[pos,1] = tmp[0]
+
+# for pos, elem in enumerate(tri_geom.v2):
+#     tmp = np.where(Points == elem)[0]
+#     if len(tmp) > 3:
+#         l0 = []
+#         l0 = list(tmp)
+#         tmp1 = [x for x in l0 if l0.count(x) > 1]
+#         Vertex[pos,2] = tmp1[0]
+#     else:
+#         Vertex[pos,2] = tmp[0]
+
+
+# points_out, faces_out = fast_simplification.simplify(Points, Vertex, 0.9) # 30%
+
+# new_mesh1 = mesh.Mesh(np.zeros(faces_out.shape[0], dtype=mesh.Mesh.dtype))
+# for i, f in enumerate(faces_out):
+#     for j in range(3):
+#         new_mesh1.vectors[i][j] = points_out[f[j],:]
+
+# aux = new_mesh1.vectors
+
+# # Write the mesh to file "pelvis_new.stl"
+# new_mesh1.save(ruta + 'Python/femur_new_simplify.stl')
+
+
+# aca aranca el codigo:
+TrLB = load_mesh(ruta + 'Python/femur_new_simplify.stl')
+
+
+# # ---------
+# fig = plt.figure()
+# ax = fig.add_subplot(projection = '3d')
+# ax.plot_trisurf(TrLB['Points'][:,0], TrLB['Points'][:,1], TrLB['Points'][:,2], triangles = TrLB['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'red')
+# ax.set_box_aspect([1,1,1])
+# plt.show()
+# # -------------
+
+U_0 = np.reshape(np.array([0, 0, 1]),(3, 1))
+L_ratio = 0.33
+
+# Convert tiangulation dict to mesh object --------
+tmp_TrLB = mesh.Mesh(np.zeros(TrLB['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+for i, f in enumerate(TrLB['ConnectivityList']):
+    for j in range(3):
+        tmp_TrLB.vectors[i][j] = TrLB['Points'][f[j],:]
+# update normals
+tmp_TrLB.update_normals()
+# ------------------------------------------------
+
+V_all, _, _, _, _ = TriInertiaPpties(TrLB)
+
+# Initial estimate of the Distal-to-Proximal (DP) axis Z0
+Z0 = V_all[0]
+Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+
+# Reorient Z0 according to U_0
+Z0 *= np.sign(np.dot(U_0.T, Z0))
+
+# Fast and dirty way to split the bone
+LengthBone = np.max(np.dot(TrLB['Points'], Z0)) - np.min(np.dot(TrLB['Points'], Z0))
+
+# create the proximal bone part
+Zprox = np.max(np.dot(TrLB['Points'], Z0)) - L_ratio*LengthBone
+ElmtsProx = np.where(np.dot(tmp_TrLB.centroids, Z0) > Zprox)[0]
+TrProx = TriReduceMesh(TrLB, ElmtsProx)
+# # TrProx = TriFillPlanarHoles( TrProx )
+
+fig = plt.figure()
+ax = fig.add_subplot(projection = '3d')
+ax.plot_trisurf(TrProx['Points'][:,0], TrProx['Points'][:,1], TrProx['Points'][:,2], triangles = TrProx['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+ax.set_box_aspect([1,1,1])
+plt.show()
+# -------------
+
+tri_freeB = {}
+index_freeB = []
+faces_freeB = []
+
+for pos, tri in enumerate(TrProx['ConnectivityList']):
+    tmp_ind = []
+    tmp_face = []
+    # print(tri)
+    combinations = [[a,b] for a in tri for b in tri if a != b]
+    # print(combinations)
+    for val in combinations:
+        # print(val)
+        tmp = np.where((TrProx['ConnectivityList'][:,0] == val[0]) & (TrProx['ConnectivityList'][:,1] == val[1]))[0]
+        if len(tmp) > 0 and tmp != pos:
+            tmp_ind.append(tmp)
+        # elif tmp[0] and tmp != pos:
+        #     tmp_face.append(val)
+    if not tmp_ind:
+        index_freeB.append(pos)
+        # faces_freeB.append(tmp_face)
+        
+
+Trifree = {}
+Trifree['ConnectivityList'] = TrProx['ConnectivityList'][index_freeB]
+points = []
+for i, f in enumerate(Trifree['ConnectivityList']):
+    # print(f)
+    for j in range(3):
+        points.append(TrProx['Points'][f[j],:])
+
+Trifree['Points'] = np.array(points)
+
+# fig = plt.figure()
+# ax = fig.add_subplot(projection = '3d')
+ax.plot_trisurf(Trifree['Points'][:,0], Trifree['Points'][:,1], Trifree['Points'][:,2], triangles = Trifree['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'green')
+ax.set_box_aspect([1,1,1])
+plt.show()
+# -------------
+
+
+
+
+
+
 
 
 

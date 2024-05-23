@@ -215,9 +215,10 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
     # binary indicating kept Elements
     # NodesKept: ID of kept nodes of corresponding to TR connectibity list OR 
     # list of nodes coordinates
+    
     TRout = {}
     NodesIDKept = []
-    if NodesKept:
+    if NodesKept  !=  []:
         if np.sum(np.mod(NodesKept, 1)) == 0: # NodesID given
             NodesIDKept = NodesKept
         else: # Nodes Coordinates given
@@ -226,22 +227,39 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
         NodesIDKept = np.sort(NodesIDKept)
         PointsKept = TR['Points'][NodesIDKept]
         
-    if ElmtsKept:
+    if ElmtsKept  !=  []:
+        if np.sum(np.mod(ElmtsKept, 1)) == 0: # ElmtsID given
+            tmp_NodesIDKept = TR['ConnectivityList'][ElmtsKept]
+            NodesIDKept = np.unique(tmp_NodesIDKept.ravel())
+            
+            ElmtsIDKept = ElmtsKept
+        else: # Elements connectivity given
+            tmp_ElmtsIDKept = [np.where(TR['ConnectivityList'] == tri)[0][0] for tri in ElmtsKept]
+            ElmtsIDKept = np.unique(np.array(tmp_ElmtsIDKept))
+        
+        ElmtsKept = TR['ConnectivityList'][ElmtsIDKept]
+        tmp_ElmtsKept = np.zeros(np.shape(ElmtsKept))
         for pos, val in enumerate(NodesIDKept):
-            ElmtsKept[ElmtsKept == val] = pos+1
+            ind = np.where(ElmtsKept == val)
+            tmp_ElmtsKept[ind] = pos
+        
+        PointsKept = TR['Points'][NodesIDKept]
+        ElmtsKept = tmp_ElmtsKept
     else:
         tmp_ElmtsKept = []
         for tri in TR['ConnectivityList']:
             if set(tri).issubset(NodesIDKept):
                 tmp_ElmtsKept.append(tri)
+        
         ElmtsKept = np.array(tmp_ElmtsKept)
-        
+        tmp_ElmtsKept = np.zeros(np.shape(ElmtsKept))
         for pos, val in enumerate(NodesIDKept):
-            ElmtsKept[ElmtsKept == val] = pos+1
-            
-    TRout['Points'] = PointsKept
-    TRout['ConnectivityList'] = ElmtsKept
+            ind = np.where(ElmtsKept == val)
+            tmp_ElmtsKept[ind] = pos
         
+    TRout['Points'] = PointsKept
+    TRout['ConnectivityList'] = ElmtsKept.astype(int)
+            
     return TRout
 
 # -----------------------------------------------------------------------------
@@ -279,17 +297,17 @@ def cutLongBoneMesh(TrLB, U_0 = np.reshape(np.array([0, 0, 1]),(3, 1)), L_ratio 
     tmp_TrLB.update_normals()
     # ------------------------------------------------
     
-    V_all, _ = TriInertiaPpties(TrLB)
-    
+    V_all, _, _, _, _ = TriInertiaPpties(TrLB)
+
     # Initial estimate of the Distal-to-Proximal (DP) axis Z0
     Z0 = V_all[0]
     Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-    
+
     # Reorient Z0 according to U_0
-    Z0 *= np.sign(np.dot(U_0, Z0))
-    
+    Z0 *= np.sign(np.dot(U_0.T, Z0))
+
     # Fast and dirty way to split the bone
-    LengthBone = np.max(TrLB['Points']*Z0) - np.min(TrLB['Points']*Z0)
+    LengthBone = np.max(np.dot(TrLB['Points'], Z0)) - np.min(np.dot(TrLB['Points'], Z0))
     
     # create the proximal bone part
     Zprox = np.max(TrLB['Points']*Z0) - L_ratio*LengthBone

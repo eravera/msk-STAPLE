@@ -421,7 +421,7 @@ aux3 = np.dot(TMPtriangle['Points'],aux2)
 
 #%% prueba de funcion femur_guess_CS
 
-# reduce number of triangles
+# # reduce number of triangles
 
 # tri_geom = mesh.Mesh.from_file(ruta + 'bone_datasets/TLEM2/stl/femur_r.stl')
 
@@ -522,47 +522,151 @@ fig = plt.figure()
 ax = fig.add_subplot(projection = '3d')
 ax.plot_trisurf(TrProx['Points'][:,0], TrProx['Points'][:,1], TrProx['Points'][:,2], triangles = TrProx['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 ax.set_box_aspect([1,1,1])
-plt.show()
+# plt.show()
 # -------------
 
-tri_freeB = {}
-index_freeB = []
-faces_freeB = []
+# tri_freeB = {}
+# index_freeB = []
+# faces_NOfreeB = {}
 
-for pos, tri in enumerate(TrProx['ConnectivityList']):
-    tmp_ind = []
-    tmp_face = []
-    # print(tri)
-    combinations = [[a,b] for a in tri for b in tri if a != b]
-    # print(combinations)
-    for val in combinations:
-        # print(val)
-        tmp = np.where((TrProx['ConnectivityList'][:,0] == val[0]) & (TrProx['ConnectivityList'][:,1] == val[1]))[0]
-        if len(tmp) > 0 and tmp != pos:
-            tmp_ind.append(tmp)
-        # elif tmp[0] and tmp != pos:
-        #     tmp_face.append(val)
-    if not tmp_ind:
-        index_freeB.append(pos)
-        # faces_freeB.append(tmp_face)
+# for pos, tri in enumerate(TrProx['ConnectivityList']):
+#     tmp_ind = []
+#     tmp_face = []
+#     combinations = [[a,b] for a in tri for b in tri if a != b]
+    
+#     for val in combinations:
+#         tmp1 = np.where((TrProx['ConnectivityList'][:,0] == val[0]) & (TrProx['ConnectivityList'][:,1] == val[1]))[0]
+#         tmp2 = np.where((TrProx['ConnectivityList'][:,1] == val[0]) & (TrProx['ConnectivityList'][:,2] == val[1]))[0]
+#         tmp3 = np.where((TrProx['ConnectivityList'][:,2] == val[0]) & (TrProx['ConnectivityList'][:,0] == val[1]))[0]
         
+#         if len(tmp1) > 0 and tmp1[0] != pos:
+#             # connectivity list index where face was shared
+#             tmp_ind.append(tmp1[0])
+#         if len(tmp2) > 0 and tmp2[0] != pos:
+#             # connectivity list index where face was shared
+#             tmp_ind.append(tmp2[0])
+#         if len(tmp3) > 0 and tmp3[0] != pos:
+#             # connectivity list index where face was shared
+#             tmp_ind.append(tmp3[0])
+#         # print('pos:', pos, tmp_ind, tmp1, tmp2, tmp3)
+#     if not tmp_ind:
+#         # connectivity list index of free face
+#         index_freeB.append(pos)
+#     else:
+#         faces_NOfreeB[str(pos)] = tmp_ind
+        
+        
+# ind_PointsFreeB = np.unique(TrProx['ConnectivityList'][index_freeB].reshape(-1, 1))
 
-Trifree = {}
-Trifree['ConnectivityList'] = TrProx['ConnectivityList'][index_freeB]
-points = []
-for i, f in enumerate(Trifree['ConnectivityList']):
-    # print(f)
-    for j in range(3):
-        points.append(TrProx['Points'][f[j],:])
+# for idPoint in ind_PointsFreeB:
+#     ax.scatter(TrProx['Points'][idPoint,0], TrProx['Points'][idPoint,1], TrProx['Points'][idPoint,2], color='red')
 
-Trifree['Points'] = np.array(points)
+# PointsDic = {str(key):{} for key in range(len(TrProx['Points']))}
 
-# fig = plt.figure()
-# ax = fig.add_subplot(projection = '3d')
-ax.plot_trisurf(Trifree['Points'][:,0], Trifree['Points'][:,1], Trifree['Points'][:,2], triangles = Trifree['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'green')
-ax.set_box_aspect([1,1,1])
+# for indp, point in enumerate(TrProx['Points']):
+#     tmp_face = []
+#     tmp = np.where(TrProx['ConnectivityList'] == indp)
+    
+#     PointsDic[str(indp)]['value'] = point
+#     PointsDic[str(indp)]['triangle'] = list(tmp[0])
+#     PointsDic[str(indp)]['vertex'] = list(tmp[1])
+#     PointsDic[str(indp)]['faces'] = []
+#     # print(indp)
+#     for face in range(len(PointsDic[str(indp)]['triangle'])):
+        
+#         indt = PointsDic[str(indp)]['triangle'][face]
+#         indv = PointsDic[str(indp)]['vertex'][face]
+#         # print(indt, indv)
+        
+#         if indv == 2:
+#             tmp_face.append([TrProx['ConnectivityList'][indt, 2], TrProx['ConnectivityList'][indt, 0]])
+#             tmp_face.append([TrProx['ConnectivityList'][indt, 2], TrProx['ConnectivityList'][indt, 1]])
+#         elif indv == 1:
+#             tmp_face.append([TrProx['ConnectivityList'][indt, 1], TrProx['ConnectivityList'][indt, 2]])
+#             tmp_face.append([TrProx['ConnectivityList'][indt, 1], TrProx['ConnectivityList'][indt, 0]])
+#         elif indv == 0:
+#             tmp_face.append([TrProx['ConnectivityList'][indt, 0], TrProx['ConnectivityList'][indt, 1]])
+#             tmp_face.append([TrProx['ConnectivityList'][indt, 2], TrProx['ConnectivityList'][indt, 0]])
+    
+#     PointsDic[str(indp)]['faces'].append(tmp_face)
+   
+
+
+
+# --------------------------
+
+# PointsComb = [[a,b] for a in range(len(TrProx['Points'])) for b in range(len(TrProx['Points'])) if a != b]
+
+# for pos, tri in enumerate(TrProx['ConnectivityList']):
+#     face1 = tri[:2]
+#     face2 = tri[1:3]
+#     face3 = tri[2::-2]
+    
+#     ind_face1 = np.where((TrProx['ConnectivityList'][:,0] == face1[0]) & (TrProx['ConnectivityList'][:,1] == face1[1]))
+#     ind_face2 = np.where((TrProx['ConnectivityList'][:,1] == face2[0]) & (TrProx['ConnectivityList'][:,2] == face2[1]))
+#     ind_face3 = np.where((TrProx['ConnectivityList'][:,2] == face3[0]) & (TrProx['ConnectivityList'][:,0] == face3[1]))
+    
+#     ind_face11 = np.where((TrProx['ConnectivityList'][:,1] == face1[0]) & (TrProx['ConnectivityList'][:,2] == face1[1]))
+#     ind_face21 = np.where((TrProx['ConnectivityList'][:,2] == face2[0]) & (TrProx['ConnectivityList'][:,0] == face2[1]))
+#     ind_face31 = np.where((TrProx['ConnectivityList'][:,0] == face3[0]) & (TrProx['ConnectivityList'][:,1] == face3[1]))
+    
+#     ind_face12 = np.where((TrProx['ConnectivityList'][:,2] == face1[0]) & (TrProx['ConnectivityList'][:,0] == face1[1]))
+#     ind_face22 = np.where((TrProx['ConnectivityList'][:,0] == face2[0]) & (TrProx['ConnectivityList'][:,1] == face2[1]))
+#     ind_face32 = np.where((TrProx['ConnectivityList'][:,1] == face3[0]) & (TrProx['ConnectivityList'][:,2] == face3[1]))
+    
+
+
+FreeB = {}
+FreeB['ID'] = []
+FreeB['Coord'] = []
+
+for IDpoint, Point in enumerate(TrProx['Points']):
+    vertex_triangle = []
+    CloudPoint = []
+    tmp_norm = []
+    
+    # identify the triangles whit this vertex
+    vertex_triangle = list(np.where(TrProx['ConnectivityList'] == IDpoint)[0])
+    
+    # identify the neighborhood of points (all point from triangles that inlcude Point)
+    for neighbor in vertex_triangle:
+        
+        v0 = TrProx['Points'][TrProx['ConnectivityList'][neighbor, 0]]
+        v1 = TrProx['Points'][TrProx['ConnectivityList'][neighbor, 1]]
+        v2 = TrProx['Points'][TrProx['ConnectivityList'][neighbor, 2]]
+        
+        if np.linalg.norm(v0 - Point) != 0:
+            CloudPoint.append(v0)
+        if np.linalg.norm(v1 - Point) != 0:
+            CloudPoint.append(v1)
+        if np.linalg.norm(v2 - Point) != 0:
+            CloudPoint.append(v2)
+    
+    # for each neighborhood compute the norm with the another neighborhood. 
+    # If this norm is zero in minus of two times, this point is in the bounder
+    for neig in CloudPoint:
+        tmp_norm = [np.linalg.norm(neig - val) for val in CloudPoint]
+        if tmp_norm.count(0) < 2:
+            # duplicate points
+            FreeB['ID'].append(IDpoint)
+            FreeB['Coord'].append(Point)
+
+# remove duplicate points
+FreeB['ID'] = FreeB['ID'][::2]
+FreeB['Coord'] = FreeB['Coord'][::2]
+
+for point in FreeB['Coord']:
+    ax.scatter(point[0], point[1], point[2], color='red')
+
+
+
+# # fig = plt.figure()
+# # ax = fig.add_subplot(projection = '3d')
+# # ax.plot_trisurf(Trifree['Points'][:,0], Trifree['Points'][:,1], Trifree['Points'][:,2], triangles = Trifree['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'green')
+# # ax.set_box_aspect([1,1,1])
+# ax.scatter(Trifree['Points'][:,0], Trifree['Points'][:,1], Trifree['Points'][:,2], color='red')
 plt.show()
-# -------------
+# # -------------
 
 
 

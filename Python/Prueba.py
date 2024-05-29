@@ -21,7 +21,7 @@ from Public_functions import load_mesh, freeBoundary
 
 from algorithms import pelvis_guess_CS, STAPLE_pelvis
 
-from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh
+from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -516,13 +516,13 @@ LengthBone = np.max(np.dot(TrLB['Points'], Z0)) - np.min(np.dot(TrLB['Points'], 
 Zprox = np.max(np.dot(TrLB['Points'], Z0)) - L_ratio*LengthBone
 ElmtsProx = np.where(np.dot(tmp_TrLB.centroids, Z0) > Zprox)[0]
 TrProx = TriReduceMesh(TrLB, ElmtsProx)
-# # TrProx = TriFillPlanarHoles( TrProx )
+TrProx = TriFillPlanarHoles(TrProx)
 
 fig = plt.figure()
 ax = fig.add_subplot(projection = '3d')
-ax.plot_trisurf(TrProx['Points'][:,0], TrProx['Points'][:,1], TrProx['Points'][:,2], triangles = TrProx['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+ax.plot_trisurf(TrProx['Points'][:,0], TrProx['Points'][:,1], TrProx['Points'][:,2], triangles = TrProx['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
 ax.set_box_aspect([1,1,1])
-# plt.show()
+plt.show()
 # -------------
 
 # FreeB = {}
@@ -565,70 +565,124 @@ ax.set_box_aspect([1,1,1])
 # FreeB['Coord'] = FreeB['Coord'][::2]
 FreeB = freeBoundary(TrProx)
 
-for point in FreeB['Coord']:
-    ax.scatter(point[0], point[1], point[2], color='red')
 
-plt.show()
-# # -------------
-# Fill planar convex holes in the triangulation
-# For now the holes have to be planar
-# FOR NOW WORKS WITH ONLY ONE HOLE
-# 
-# Author: Emiliano P. Ravera (emiliano.ravera@uner.edu.ar)
-# -------------------------------
-Trout = {}
-FreeB = freeBoundary(TrProx)
-Tr = TrProx
+# # # -------------
+# # Fill planar convex holes in the triangulation
+# # For now the holes have to be planar
+# # FOR NOW WORKS WITH ONLY ONE HOLE
+# # 
+# # Author: Emiliano P. Ravera (emiliano.ravera@uner.edu.ar)
+# # -------------------------------
+# Trout = {}
+# FreeB = freeBoundary(TrProx)
+# Tr = TrProx
 
-if not FreeB:
-    print('No holes on triangulation.')
-    Trout = TrProx
-    # return Trout
+# if not FreeB:
+#     print('No holes on triangulation.')
+#     Trout = TrProx
+#     # return Trout
 
-# Fill the holes
-# center of the triangulation with hole
-TriCenter = np.mean(Tr['Points'], axis=0)
-TriCenter = np.reshape(TriCenter,(TriCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
+# # Fill the holes
+# # center of the triangulation with hole
+# TriCenter = np.mean(Tr['Points'], axis=0)
+# TriCenter = np.reshape(TriCenter,(TriCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
 
-# center onf the hole
-HoleCenter = np.mean(FreeB['Coord'], axis=0)
-HoleCenter = np.reshape(HoleCenter,(HoleCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
+# # center onf the hole
+# HoleCenter = np.mean(FreeB['Coord'], axis=0)
+# HoleCenter = np.reshape(HoleCenter,(HoleCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
 
-NewNode = np.max(Tr['ConnectivityList']) + 1
+# NewNode = np.max(Tr['ConnectivityList']) + 1
 
-U = preprocessing.normalize(HoleCenter-TriCenter, axis=0)
+# U = preprocessing.normalize(HoleCenter-TriCenter, axis=0)
 
-ConnecL = []
-Free_Points = FreeB['Coord']
-tmp_Free_Points = FreeB['Coord'][-1:] + FreeB['Coord'][:-1]
-for p1, p2 in zip(Free_Points, tmp_Free_Points):
+# ConnecL = []
+# Free_Points = FreeB['Coord']
+
+# # create triangles from Free Points
+# for IDpoint in FreeB['ID']:
+#     #  identify triangles that included a free point
+#     triangles = list(np.where(TrProx['ConnectivityList'] == IDpoint))[0]
+
+#     for tri in triangles:
+#         # identify the triangle and line that include two free ponits
+#         points = [p for p in TrProx['ConnectivityList'][tri] if p in FreeB['ID']]
         
-    Vctr1 = p1 - HoleCenter.T
-    Vctr2 = p2 - HoleCenter.T
-        
-    normal = preprocessing.normalize(np.cross(Vctr1, Vctr2), axis=1)
-    
-    ind_p1 = np.where(FreeB['Coord'] == p1)[0][0]
-    ind_p2 = np.where(FreeB['Coord'] == p2)[0][0]
-    
-    # Invert node ordering if the normals are inverted
-    if np.dot(normal, U) < 0:
-        ConnecL.append(np.array([FreeB['ID'][ind_p1], NewNode, FreeB['ID'][ind_p2]]))
-    else:
-        ConnecL.append(np.array([FreeB['ID'][ind_p1], FreeB['ID'][ind_p2], NewNode]))
+#         if len(points) == 2:
+
+#             ind_p1 = np.where(FreeB['ID'] == points[0])[0][0]
+#             ind_p2 = np.where(FreeB['ID'] == points[1])[0][0]
             
-tmp_Points = list(Tr['Points'])
-tmp_Points.append(HoleCenter[:,0].T)
-NewPoints = np.array(tmp_Points)
+#             p1 = FreeB['Coord'][ind_p1]
+#             p2 = FreeB['Coord'][ind_p2]
+            
+#             Vctr1 = p1 - HoleCenter.T
+#             Vctr2 = p2 - HoleCenter.T
+            
+#             normal = preprocessing.normalize(np.cross(Vctr1, Vctr2), axis=1)
+            
+#             # Invert node ordering if the normals are inverted
+#             if np.dot(normal, U) < 0:
+#                 ConnecL.append(np.array([points[0], NewNode, points[1]]))
+#             else:
+#                 ConnecL.append(np.array([points[0], points[1], NewNode]))
+      
+# ConnecL = list(map(tuple, ConnecL))        
+# ConnecL = list(np.array(ConnecL, dtype = 'int'))
+            
+# tmp_Points = list(Tr['Points'])
+# tmp_Points.append(HoleCenter[:,0].T)
+# NewPoints = np.array(tmp_Points)
 
-tmp_ConnectivityList = list(Tr['ConnectivityList'])
-# ConnecL = ConnectivityList + ConnecL  
-tmp_ConnectivityList += ConnecL 
+# tmp_ConnectivityList = list(Tr['ConnectivityList'])
+# tmp_ConnectivityList += ConnecL 
 
-Trout['Points'] = NewPoints
-Trout['ConnectivityList'] = np.array(tmp_ConnectivityList)
+# Trout['Points'] = NewPoints
+# Trout['ConnectivityList'] = np.array(tmp_ConnectivityList)
+
+# # remover possible lonely triangles
+# FreeB1 = freeBoundary(Trout)
+
+# while len(FreeB1['ID']) > 0:
+
+#     tmp_ConnectList_out = list(Trout['ConnectivityList'])
+#     tmp_Points_out = list(Trout['Points'])
+#     list_delete = []
+    
+#     for IDp in FreeB1['ID']:
+#         triangles = list(np.where(Trout['ConnectivityList'] == IDp))[0]
+#         if len(triangles) == 1:
+#             list_delete.append(triangles[0])
+    
+#     list_delete.sort()
+#     list_delete = list_delete[::-1]
+            
+#     tmp_ConnectList_out = [val for pos, val in enumerate(tmp_ConnectList_out) if pos not in list_delete]
+    
+#     new_points = np.array(tmp_ConnectList_out)
+#     for id_tri in list_delete:
+#         new_points[new_points >= id_tri] -= 1
+    
+#     tmp_Points_out = [val for pos, val in enumerate(tmp_Points_out) if pos not in list_delete]
+    
+#     Trout['Points'] = np.array(tmp_Points_out)
+#     Trout['ConnectivityList'] = new_points
+    
+#     # check the condition to finish while loop
+#     FreeB1 = freeBoundary(Trout)
+    
+    
+# fig = plt.figure(2)
+# ax1 = fig.add_subplot(projection = '3d')
+# ax1.plot_trisurf(Trout['Points'][:,0], Trout['Points'][:,1], Trout['Points'][:,2], triangles = Trout['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'red')
+# ax1.set_box_aspect([1,1,1])
+# plt.show()
 
 
-ax.plot_trisurf(Trout['Points'][:,0], Trout['Points'][:,1], Trout['Points'][:,2], triangles = Trout['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.6, shade=False, color = 'green')
-ax.set_box_aspect([1,1,1])
+# FreeB2 = freeBoundary(Trout1)
 
+# list_delete = []
+# for IDp in FreeB2['ID']:
+#     triangles = list(np.where(Trout['ConnectivityList'] == IDp))[0]
+#     print(triangles)
+#     # if len(triangles) == 1:
+#     #     list_delete.append(triangles[0])

@@ -26,7 +26,9 @@ from pykdtree.kdtree import KDTree
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
+from sklearn import preprocessing
 
+from Public_functions import freeBoundary
 
 #%% ---------------------------------------------------------------------------
 # SUBFUNTIONS
@@ -261,6 +263,114 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
     TRout['ConnectivityList'] = ElmtsKept.astype(int)
             
     return TRout
+
+# -----------------------------------------------------------------------------
+def TriFillPlanarHoles(Tr = {}):
+    # -------------------------------------------------------------------------
+    # Fill planar convex holes in the triangulation
+    # For now the holes have to be planar
+    # FOR NOW WORKS WITH ONLY ONE HOLE
+    # 
+    # Author: Emiliano P. Ravera (emiliano.ravera@uner.edu.ar)
+    # -------------------------------
+    Trout = {}
+    FreeB = freeBoundary(Tr)
+    
+    if not FreeB:
+        print('No holes on triangulation.')
+        Trout = Tr
+        return Trout
+
+    # Fill the holes
+    # center of the triangulation with hole
+    TriCenter = np.mean(Tr['Points'], axis=0)
+    TriCenter = np.reshape(TriCenter,(TriCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
+
+    # center onf the hole
+    HoleCenter = np.mean(FreeB['Coord'], axis=0)
+    HoleCenter = np.reshape(HoleCenter,(HoleCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
+
+    NewNode = np.max(Tr['ConnectivityList']) + 1
+
+    U = preprocessing.normalize(HoleCenter-TriCenter, axis=0)
+
+    ConnecL = []
+    
+    # create triangles from Free Points
+    for IDpoint in FreeB['ID']:
+        #  identify triangles that included a free point
+        triangles = list(np.where(Tr['ConnectivityList'] == IDpoint))[0]
+
+        for tri in triangles:
+            # identify the triangle and line that include two free ponits
+            points = [p for p in Tr['ConnectivityList'][tri] if p in FreeB['ID']]
+            
+            if len(points) == 2:
+
+                ind_p1 = np.where(FreeB['ID'] == points[0])[0][0]
+                ind_p2 = np.where(FreeB['ID'] == points[1])[0][0]
+                
+                p1 = FreeB['Coord'][ind_p1]
+                p2 = FreeB['Coord'][ind_p2]
+                
+                Vctr1 = p1 - HoleCenter.T
+                Vctr2 = p2 - HoleCenter.T
+                
+                normal = preprocessing.normalize(np.cross(Vctr1, Vctr2), axis=1)
+                
+                # Invert node ordering if the normals are inverted
+                if np.dot(normal, U) < 0:
+                    ConnecL.append(np.array([points[0], NewNode, points[1]]))
+                else:
+                    ConnecL.append(np.array([points[0], points[1], NewNode]))
+          
+    ConnecL = list(map(tuple, ConnecL))        
+    ConnecL = list(np.array(ConnecL, dtype = 'int'))
+                
+    tmp_Points = list(Tr['Points'])
+    tmp_Points.append(HoleCenter[:,0].T)
+    NewPoints = np.array(tmp_Points)
+
+    tmp_ConnectivityList = list(Tr['ConnectivityList'])
+    tmp_ConnectivityList += ConnecL 
+
+    Trout['Points'] = NewPoints
+    Trout['ConnectivityList'] = np.array(tmp_ConnectivityList)
+    
+    # -----------------------------------
+    # remove possible lonely triangles
+    FreeB1 = freeBoundary(Trout)
+
+    while len(FreeB1['ID']) > 0:
+
+        tmp_ConnectList_out = list(Trout['ConnectivityList'])
+        tmp_Points_out = list(Trout['Points'])
+        list_delete = []
+        
+        for IDp in FreeB1['ID']:
+            triangles = list(np.where(Trout['ConnectivityList'] == IDp))[0]
+            if len(triangles) == 1:
+                list_delete.append(triangles[0])
+        
+        list_delete.sort()
+        list_delete = list_delete[::-1]
+                
+        tmp_ConnectList_out = [val for pos, val in enumerate(tmp_ConnectList_out) if pos not in list_delete]
+        
+        new_points = np.array(tmp_ConnectList_out)
+        for id_tri in list_delete:
+            new_points[new_points >= id_tri] -= 1
+        
+        tmp_Points_out = [val for pos, val in enumerate(tmp_Points_out) if pos not in list_delete]
+        
+        Trout['Points'] = np.array(tmp_Points_out)
+        Trout['ConnectivityList'] = new_points
+        
+        # check the condition to finish while loop
+        FreeB1 = freeBoundary(Trout)
+    # -----------------------------------
+    
+    return Trout
 
 # -----------------------------------------------------------------------------
 # GeometricFun

@@ -36,7 +36,10 @@ from GIBOC_core import TriInertiaPpties, \
                            quickPlotRefSystem, \
                             TriReduceMesh, \
                              plotTriangLight, \
-                              plotBoneLandmarks
+                              plotBoneLandmarks, \
+                               cutLongBoneMesh, \
+                                TriFillPlanarHoles, \
+                                 computeTriCoeffMorpho
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -318,7 +321,7 @@ def pelvis_guess_CS(pelvisTri, debug_plots = 0):
     return RotPseudoISB2Glob, LargestTriangle, BL
 
 # -----------------------------------------------------------------------------
-def femur_guess_CS(Femur, debug_plots = 1):
+def femur_guess_CS(Femur, debug_plots = 0):
     # Provide an informed guess of the femur orientation.
     # 
     # General Idea
@@ -331,36 +334,158 @@ def femur_guess_CS(Femur, debug_plots = 1):
     # one from the proximal epiphysis.
     # 
     # Inputs:
-    # Femur - A MATLAB triangulation object of the complete femur.
+    # Femur - A Dict triangulation of the complete femur.
     # 
     # debug_plots - enable plots used in debugging. Value: 1 or 0 (default).
     # 
     # Output:
     # Z0 - A unit vector giving the distal to proximal direction.
     # -------------------------------------------------------------------------
+    # Convert tiangulation dict to mesh object --------
+    tmp_Femur = mesh.Mesh(np.zeros(Femur['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(Femur['ConnectivityList']):
+        for j in range(3):
+            tmp_Femur.vectors[i][j] = Femur['Points'][f[j],:]
+    # update normals
+    tmp_Femur.update_normals()
+    # ------------------------------------------------
+    
     Z0 = np.zeros((3,1))
     
     # Get the principal inertia axis of the femur (potentially wrongly orientated)
-    V_all, CenterVol = TriInertiaPpties(Femur)
+    V_all, CenterVol, _, _, _ = TriInertiaPpties(Femur)
     Z0 = V_all[0]
     Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     Y0 = V_all[1]
     Y0 = np.reshape(Y0,(Y0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     
     # Deform the femur along the 2nd principal direction
-    Pts = Femur['Points'] - CenterVol
+    Pts = Femur['Points'] - CenterVol.T
     def_matrix = np.array([[1, 0, 0], [0, 2, 0], [0, 0, 1]])
-    Pts_deformed = (Pts*V_all)*def_matrix*V_all.T
-    Femur['Points'] = Pts_deformed + CenterVol
+    Pts_deformed = np.dot(np.dot(np.dot(Pts, V_all), def_matrix), V_all.T)
+    Femur['Points'] = Pts_deformed + CenterVol.T
     
     # Get both epiphysis of the femur (10% of the length at both ends)
     # Tricks : Here we use Z0 as the initial direction for
-    # TrEpi1, TrEpi2 = cutLongBoneMesh(Femur, Z0, 0.10)
+    TrEpi1, TrEpi2 = cutLongBoneMesh(Femur, Z0, 0.10)
     
+    # Get the central 60% of the bone -> The femur diaphysis
+    LengthBone = np.max(np.dot(Femur['Points'], Z0)) - np.min(np.dot(Femur['Points'], Z0))
+    L_ratio = 0.20
     
+    # First remove the top 20% percent
+    alt_top = np.max(np.dot(Femur['Points'], Z0)) - L_ratio*LengthBone
+    ElmtsTmp1 = np.where(np.dot(tmp_Femur.centroids, Z0) < alt_top)[0]
+    TrTmp1 = TriReduceMesh(Femur, ElmtsTmp1)
+    TrTmp1 = TriFillPlanarHoles(TrTmp1)
+    # Convert tiangulation dict to mesh object --------
+    tmp_TrTmp1 = mesh.Mesh(np.zeros(TrTmp1['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(TrTmp1['ConnectivityList']):
+        for j in range(3):
+            tmp_TrTmp1.vectors[i][j] = TrTmp1['Points'][f[j],:]
+    # update normals
+    tmp_TrTmp1.update_normals()
+    # ------------------------------------------------
     
+    # Then remove the bottom 20% percent
+    alt_bottom = np.min(np.dot(Femur['Points'], Z0)) + L_ratio*LengthBone
+    ElmtsTmp2 = np.where(np.dot(tmp_TrTmp1.centroids, Z0) > alt_bottom)[0]
+    TrTmp2 = TriReduceMesh(TrTmp1, ElmtsTmp2)
+    FemurDiaphysis = TriFillPlanarHoles(TrTmp2)
     
+    # Get the principal inertia axis of the diaphysis (potentially wrongly orientated)
+    V_all, CenterVol_dia, _, _, _ = TriInertiaPpties(FemurDiaphysis)
+    Z0_dia = V_all[0]
+    Z0_dia = np.reshape(Z0_dia,(Z0_dia.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    
+    # Get the distance of the centroids of each epihyisis part to the diaphysis
+    # axis
+    _, CenterEpi1, _, _, _ = TriInertiaPpties(TrEpi1)
+    _, CenterEpi2, _, _, _ = TriInertiaPpties(TrEpi2)
+    
+    distToDiaphAxis1 = np.linalg.norm(np.cross((CenterEpi1 - CenterVol).T, Z0_dia.T))
+    distToDiaphAxis2 = np.linalg.norm(np.cross((CenterEpi2 - CenterVol).T, Z0_dia.T))
+    
+    if distToDiaphAxis1 < distToDiaphAxis2:
+        # It means that epi1 is the distal epihysis and epi2 the proximal
+        U_DistToProx = CenterEpi2 - CenterEpi1
+        
+    elif distToDiaphAxis1 > distToDiaphAxis2:
+        # It means that epi1 is the proximal epihysis and epi2 the distal
+        U_DistToProx = CenterEpi1 - CenterEpi2
+    
+    # Reorient Z0 of the femur according to the found direction
+    Z0 = np.sign(np.dot(U_DistToProx.T, Z0))*Z0
+    
+    # Warning flag for unclear results
+    if np.abs(distToDiaphAxis1 - distToDiaphAxis2)/(distToDiaphAxis1 + distToDiaphAxis2) < 0.20:
+        logging.exception('The distance to the femur diaphysis axis for the femur' + \
+        ' epihysis where not very different. Orientation of Z0, distal to proximal axis, of the femur could be incorrect. \n')
+    
+    # debug plot
+    if debug_plots:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection = '3d')
+        
+        ax.scatter(CenterEpi1[0], CenterEpi1[1], CenterEpi1[2], marker='*', color = 'r')
+        ax.scatter(CenterEpi2[0], CenterEpi2[1], CenterEpi2[2], marker='*', color = 'b')
+        
+        ax.quiver(CenterVol_dia[0], CenterVol_dia[1], CenterVol_dia[2], \
+                  Z0_dia[0], Z0_dia[1], Z0_dia[2], \
+                  color='k', length = 200)
+        ax.quiver(CenterVol_dia[0], CenterVol_dia[1], CenterVol_dia[2], \
+                  -Z0_dia[0], -Z0_dia[1], -Z0_dia[2], \
+                  color='gray', length = 200)
+        ax.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  Z0[0], Z0[1], Z0[2], \
+                  color='b', length = 300)
+        ax.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  Y0[0], Y0[1], Y0[2], \
+                  color='g', length = 50)
+        ax.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  -Y0[0], -Y0[1], -Y0[2], \
+                  color='olivedrab', length = 50)
+        
+        ax.plot_trisurf(Femur['Points'][:,0], Femur['Points'][:,1], Femur['Points'][:,2], \
+                         triangles = Femur['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, color = 'cyan', shade=False)
+        
+        ax.set_box_aspect([1,1,1])
+        ax.grid(True)
+        
     return Z0
+
+# -----------------------------------------------------------------------------
+def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug_plots = 0, debug_prints = 0):
+    # -------------------------------------------------------------------------
+    CSs = {} 
+    FemHead = {}
+    # Convert tiangulation dict to mesh object --------
+    tmp_ProxFem = mesh.Mesh(np.zeros(ProxFem['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(ProxFem['ConnectivityList']):
+        for j in range(3):
+            tmp_ProxFem.vectors[i][j] = ProxFem['Points'][f[j],:]
+    # update normals
+    tmp_ProxFem.update_normals()
+    # ------------------------------------------------
+    print('Computing centre of femoral head:')
+    
+    # Find the most proximal on femur top head
+    I_Top_FH = []
+    I_Top_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Z0'])))
+    
+    # most prox point (neighbors of I_Top_FH)
+    I_Top_FH += list(list(np.where(ProxFem['ConnectivityList'] == I_Top_FH[0]))[0])
+    
+    # triang around it
+    Face_Top_FH = TriReduceMesh(ProxFem, I_Top_FH)
+    
+    # create a triang with them
+    # Patch_Top_FH = TriDilateMesh(ProxFem,Face_Top_FH,40*CoeffMorpho)
+    
+    
+    
+    
+    return CSs, FemHead
 #%% ---------------------------------------------------------------------------
 # 
 # -----------------------------------------------------------------------------
@@ -502,7 +627,6 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     PelvisBL['SYMP'] = SYMP
     
     # debug plot
-    
     if result_plots:
         
         fig = plt.figure()
@@ -584,14 +708,40 @@ def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_pl
     # always provided as unique file. Previous versions of this function did
     # use separated proximal and distal triangulations. Check Git history if
     # you are interested in that.
-    # U_DistToProx = femur_guess_CS(femurTri, debug_plots)
+    U_DistToProx = femur_guess_CS(femurTri, debug_plots)
+    ProxFemTri, DistFemTri = cutLongBoneMesh(femurTri, U_DistToProx)
     
+    # Compute the coefficient for morphology operations
+    CoeffMorpho = computeTriCoeffMorpho(femurTri)
     
+    # Get inertial principal vectors V_all of the femur geometry & volum center
+    V_all, CenterVol, InertiaMatrix, _, _ = TriInertiaPpties(femurTri)
     
+    # -------------------------------------
+    # Initial Coordinate system (from inertial axes and femoral head):
+    # * Z0: points upwards (inertial axis) 
+    # * Y0: points medio-lat 
+    # -------------------------------------
+    # coordinate system structure to store coordinate system's info
+    AuxCSInfo = {}
+    AuxCSInfo['CenterVol'] = CenterVol
+    AuxCSInfo['V_all'] = V_all
     
+    # Check that the distal femur is 'below' the proximal femur or invert Z0
+    Z0 = V_all[0]
+    Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    Z0 *= np.sign(np.dot((np.mean(ProxFemTri['Points']) - np.mean(DistFemTri['Points'])),Z0))
+    AuxCSInfo['Z0'] = Z0
     
-    
-    
+    # Find Femoral Head Center
+    # try:
+    #     # sometimes Renault2018 fails for sparse meshes 
+    #     # FemHeadAS is the articular surface of the hip
+    #     # AuxCSInfo, FemHeadTri = GIBOC_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, CoeffMorpho, debug_plots)
+    # except:
+    #     # use Kai if GIBOC approach fails
+    #     logging.exception('Renault2018 fitting has failed. Using Kai femoral head fitting. \n')
+    #     # AuxCSInfo, _ = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, debug_plots)
     
     return 0
     

@@ -203,7 +203,7 @@ def freeBoundary(Tr = {}):
         CloudPoint = []
         tmp_norm = []
         
-        # identify the triangles whit this vertex
+        # identify the triangles with this vertex
         vertex_triangle = list(np.where(Tr['ConnectivityList'] == IDpoint)[0])
         
         # identify the neighborhood of points (all point from triangles that inlcude Point)
@@ -221,7 +221,7 @@ def freeBoundary(Tr = {}):
                 CloudPoint.append(v2)
         
         # for each neighborhood compute the norm with the another neighborhood. 
-        # If this norm is zero in minus of two times, this point is in the bounder
+        # If this norm is zero for less of two times, this point is in the bounder
         for neig in CloudPoint:
             tmp_norm = [np.linalg.norm(neig - val) for val in CloudPoint]
             if tmp_norm.count(0) < 2:

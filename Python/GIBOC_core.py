@@ -373,6 +373,80 @@ def TriFillPlanarHoles(Tr = {}):
     return Trout
 
 # -----------------------------------------------------------------------------
+def computeTriCoeffMorpho(Tr = {}):
+    # -------------------------------------------------------------------------
+    # Get the mean edge length of the triangles composing the femur
+    # This is necessary because the functions were originally developed for
+    # triangulation with constant mean edge lengths of 0.5 mm
+    # -------------------------------------------------------------------------
+    CoeffMorpho = 1
+    PptiesTriObj = TriMesh2DProperties(Tr)
+    
+    # Assume triangles are equilaterals
+    meanEdgeLength = np.sqrt( (4/np.sqrt(3))*(PptiesTriObj['TotalArea']/np.size(Tr['ConnectivityList'])) )
+    
+    # Get the coefficient for morphology operations
+    CoeffMorpho = 0.5 / meanEdgeLength
+    
+    return CoeffMorpho
+
+# -----------------------------------------------------------------------------
+def TriDilateMesh(TRsup = {}, TRin = {}, nbElmts = 0):
+    # -------------------------------------------------------------------------
+    # This function is analog to a dilate function performed on binary images 
+    # (https://en.wikipedia.org/wiki/Mathematical_morphology)
+    # 
+    # Input :
+    # - TRsup : a support triangulation object (analog to the whole image)
+    # - TRin : a triangulation object to be dilated (analog to the white pixels of the binary image)
+    # TRin must me a subset (a region) of the TRsup triangulation, meaning that all vertices and elements of TRin
+    # are included in TRsup even if they don't share the same numberings of vertices and elements.
+    # - nbElemts : The number of neigbour elements/facets that will be dilated (analog to the number of pixel of the dilation)
+    # 
+    # Output :
+    # - TRout : the dilated triangulation dict
+    # -------------------------------------------------------------------------
+    TRout = {}
+    
+    # Round the number of elements to upper integer
+    nbElmts = np.ceil(nbElmts)
+    
+    # returns the rows of the intersection in the same order as they appear in 
+    # the first vector given as input.
+    ia = [i for i, v in enumerate(TRsup['Points']) if np.all(v == TRin['Points'][i])]
+    ib = [i for i, v in enumerate(TRin['Points']) if np.all(v == TRsup['Points'][i])]
+    
+    # Get the elements attached to the identified vertices
+    ElmtsOK = []
+    # Initially, ElmtsOk are the elements on TRsup that correspond to the geometry of the TRin
+    for tri in ia:
+       ElmtsOK.append(list(list(np.where(TRsup['ConnectivityList'] == tri))[0])) 
+    
+    # remove duplicated elements
+    ElmtsOK = list(set(ElmtsOK))
+    ElmtsInitial = ElmtsOK
+    
+    # Get the neighbours of the identified elements, loop
+    for dil in nbElmts:
+        # Identify the neighbours of the elements of the ElmtsOK subset
+        ElmtNeighbours = []
+        for nei in ElmtsInitial:
+            ElmtNeighbours = list(list(np.where(TRsup['ConnectivityList'] == nei))[0])
+        
+        # remove duplicated elements
+        ElmtsInitial = list(set(ElmtNeighbours))
+        
+        # Add the new neighbours to the list of elements ElmtsOK
+        ElmtsOK += ElmtsInitial
+        # remove duplicated elements
+        ElmtsOK = list(set(ElmtsOK))
+    
+    # The output is a subset of TRsup with ElmtsOK
+    TRout = TriReduceMesh(TRsup, ElmtsOK)    
+    
+    return TRout
+    
+# -----------------------------------------------------------------------------
 # GeometricFun
 # -----------------------------------------------------------------------------
 def cutLongBoneMesh(TrLB, U_0 = np.reshape(np.array([0, 0, 1]),(3, 1)), L_ratio = 0.33):
@@ -392,7 +466,7 @@ def cutLongBoneMesh(TrLB, U_0 = np.reshape(np.array([0, 0, 1]),(3, 1)), L_ratio 
     TrProx = {}
     TrDist = {}
     
-    if U_0 == np.array([0, 0, 1]):
+    if np.all(U_0 == np.array([0, 0, 1])):
         print('Distal to proximal direction of long bone is based on the' + \
         ' assumption that the bone distal to proximal axis is oriented' + \
         ' +Z_CT or +Z_MRI vector of the imaging system. If it`s not' + \
@@ -420,10 +494,16 @@ def cutLongBoneMesh(TrLB, U_0 = np.reshape(np.array([0, 0, 1]),(3, 1)), L_ratio 
     LengthBone = np.max(np.dot(TrLB['Points'], Z0)) - np.min(np.dot(TrLB['Points'], Z0))
     
     # create the proximal bone part
-    Zprox = np.max(TrLB['Points']*Z0) - L_ratio*LengthBone
-    ElmtsProx = np.where(tmp_TrLB.centroids*Z0 > Zprox)
+    Zprox = np.max(np.dot(TrLB['Points'], Z0)) - L_ratio*LengthBone
+    ElmtsProx = np.where(np.dot(tmp_TrLB.centroids, Z0) > Zprox)[0]
     TrProx = TriReduceMesh(TrLB, ElmtsProx)
-    # TrProx = TriFillPlanarHoles( TrProx )
+    TrProx = TriFillPlanarHoles(TrProx)
+    
+    # create the distal bone part
+    Zdist = np.min(np.dot(TrLB['Points'], Z0)) + L_ratio*LengthBone
+    ElmtsDist = np.where(np.dot(tmp_TrLB.centroids, Z0) < Zdist)[0]
+    TrDist = TriReduceMesh(TrLB, ElmtsDist)
+    TrDist = TriFillPlanarHoles( TrDist)
     
     return TrProx, TrDist
     

@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 from Public_functions import load_mesh, freeBoundary
 
-from algorithms import pelvis_guess_CS, STAPLE_pelvis
+from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles
 
@@ -477,9 +477,9 @@ aux3 = np.dot(TMPtriangle['Points'],aux2)
 
 
 # aca aranca el codigo:
-TrLB = load_mesh(ruta + 'Python/femur_new_simplify.stl')
+Femur = load_mesh(ruta + 'Python/femur_new_simplify.stl')
 
-
+# Z0 = femur_guess_CS(Femur, 1)
 # # ---------
 # fig = plt.figure()
 # ax = fig.add_subplot(projection = '3d')
@@ -488,42 +488,66 @@ TrLB = load_mesh(ruta + 'Python/femur_new_simplify.stl')
 # plt.show()
 # # -------------
 
-U_0 = np.reshape(np.array([0, 0, 1]),(3, 1))
-L_ratio = 0.33
+# U_0 = np.reshape(np.array([0, 0, 1]),(3, 1))
+# L_ratio = 0.33
 
 # Convert tiangulation dict to mesh object --------
-tmp_TrLB = mesh.Mesh(np.zeros(TrLB['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
-for i, f in enumerate(TrLB['ConnectivityList']):
+tmp_Femur = mesh.Mesh(np.zeros(Femur['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+for i, f in enumerate(Femur['ConnectivityList']):
     for j in range(3):
-        tmp_TrLB.vectors[i][j] = TrLB['Points'][f[j],:]
+        tmp_Femur.vectors[i][j] = Femur['Points'][f[j],:]
 # update normals
-tmp_TrLB.update_normals()
+tmp_Femur.update_normals()
 # ------------------------------------------------
 
-V_all, _, _, _, _ = TriInertiaPpties(TrLB)
+# V_all, _, _, _, _ = TriInertiaPpties(Femur)
 
-# Initial estimate of the Distal-to-Proximal (DP) axis Z0
-Z0 = V_all[0]
-Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+# # Initial estimate of the Distal-to-Proximal (DP) axis Z0
+# Z0 = V_all[0]
+# Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
 
-# Reorient Z0 according to U_0
-Z0 *= np.sign(np.dot(U_0.T, Z0))
+# # Reorient Z0 according to U_0
+# Z0 *= np.sign(np.dot(U_0.T, Z0))
 
-# Fast and dirty way to split the bone
-LengthBone = np.max(np.dot(TrLB['Points'], Z0)) - np.min(np.dot(TrLB['Points'], Z0))
+# # Get the central 60% of the bone -> The femur diaphysis
+# LengthBone = np.max(np.dot(Femur['Points'], Z0)) - np.min(np.dot(Femur['Points'], Z0))
+# L_ratio = 0.20
 
-# create the proximal bone part
-Zprox = np.max(np.dot(TrLB['Points'], Z0)) - L_ratio*LengthBone
-ElmtsProx = np.where(np.dot(tmp_TrLB.centroids, Z0) > Zprox)[0]
-TrProx = TriReduceMesh(TrLB, ElmtsProx)
-TrProx = TriFillPlanarHoles(TrProx)
+# # First remove the top 20% percent
+# alt_top = np.max(np.dot(Femur['Points'], Z0)) - L_ratio*LengthBone
+# ElmtsTmp1 = np.where(np.dot(tmp_Femur.centroids, Z0) < alt_top)[0]
+# TrTmp1 = TriReduceMesh(Femur, ElmtsTmp1)
+# TrTmp1 = TriFillPlanarHoles(TrTmp1)
+# # Convert tiangulation dict to mesh object --------
+# tmp_TrTmp1 = mesh.Mesh(np.zeros(TrTmp1['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+# for i, f in enumerate(TrTmp1['ConnectivityList']):
+#     for j in range(3):
+#         tmp_TrTmp1.vectors[i][j] = TrTmp1['Points'][f[j],:]
+# # update normals
+# tmp_TrTmp1.update_normals()
+# # ------------------------------------------------
 
-fig = plt.figure()
-ax = fig.add_subplot(projection = '3d')
-ax.plot_trisurf(TrProx['Points'][:,0], TrProx['Points'][:,1], TrProx['Points'][:,2], triangles = TrProx['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
-ax.set_box_aspect([1,1,1])
-plt.show()
-# -------------
+# # Then remove the bottom 20% percent
+# alt_bottom = np.min(np.dot(Femur['Points'], Z0)) + L_ratio*LengthBone
+# ElmtsTmp2 = np.where(np.dot(tmp_TrTmp1.centroids, Z0) > alt_bottom)[0]
+# TrTmp2 = TriReduceMesh(TrTmp1, ElmtsTmp2)
+# FemurDiaphysis = TriFillPlanarHoles(TrTmp2)
+
+
+
+
+# # # # create the proximal bone part
+# # # Zprox = np.max(np.dot(TrLB['Points'], Z0)) - L_ratio*LengthBone
+# # # ElmtsProx = np.where(np.dot(tmp_TrLB.centroids, Z0) > Zprox)[0]
+# # # TrProx = TriReduceMesh(TrLB, ElmtsProx)
+# # # TrProx = TriFillPlanarHoles(TrProx)
+
+# fig = plt.figure()
+# ax = fig.add_subplot(projection = '3d')
+# ax.plot_trisurf(FemurDiaphysis['Points'][:,0], FemurDiaphysis['Points'][:,1], FemurDiaphysis['Points'][:,2], triangles = FemurDiaphysis['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+# ax.set_box_aspect([1,1,1])
+# plt.show()
+# # # # -------------
 
 # FreeB = {}
 # FreeB['ID'] = []
@@ -563,7 +587,7 @@ plt.show()
 # # remove duplicate points
 # FreeB['ID'] = FreeB['ID'][::2]
 # FreeB['Coord'] = FreeB['Coord'][::2]
-FreeB = freeBoundary(TrProx)
+# FreeB = freeBoundary(TrProx)
 
 
 # # # -------------

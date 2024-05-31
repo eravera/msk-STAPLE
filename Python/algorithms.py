@@ -39,7 +39,9 @@ from GIBOC_core import TriInertiaPpties, \
                               plotBoneLandmarks, \
                                cutLongBoneMesh, \
                                 TriFillPlanarHoles, \
-                                 computeTriCoeffMorpho
+                                 computeTriCoeffMorpho, \
+                                  TriDilateMesh, \
+                                    TriUnite
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -474,14 +476,38 @@ def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug
     I_Top_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Z0'])))
     
     # most prox point (neighbors of I_Top_FH)
-    I_Top_FH += list(list(np.where(ProxFem['ConnectivityList'] == I_Top_FH[0]))[0])
+    for nei in ProxFem['ConnectivityList'][I_Top_FH].reshape(-1, 1):
+        I_Top_FH += list(list(np.where(ProxFem['ConnectivityList'] == nei))[0])
     
     # triang around it
     Face_Top_FH = TriReduceMesh(ProxFem, I_Top_FH)
     
     # create a triang with them
-    # Patch_Top_FH = TriDilateMesh(ProxFem,Face_Top_FH,40*CoeffMorpho)
+    Patch_Top_FH = TriDilateMesh(ProxFem, Face_Top_FH, 40*CoeffMorpho)
     
+    # Get an initial ML Axis Y0 (pointing medio-laterally)
+    # NB: from centerVol, OT points upwards to ~HJC, that is more medial than
+    # Z0, hence cross(CSs.Z0,OT) points anteriorly and Y0 medially
+    OT = np.mean(Patch_Top_FH['Points'], axis=0).T - CSs['CenterVol']
+    tmp_Y0 = np.cross(np.cross(CSs['Z0'], OT), CSs['Z0'])
+    CSs['Y0'] = np.linalg.norm(tmp_Y0)
+    
+    # Find a the most medial (MM) point on the femoral head (FH)
+    I_MM_FH = []
+    I_MM_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Y0'])))
+    
+    # most prox point (neighbors of I_Top_FH)
+    for nei in ProxFem['ConnectivityList'][I_MM_FH].reshape(-1, 1):
+        I_MM_FH += list(list(np.where(ProxFem['ConnectivityList'] == nei))[0])
+    
+    # triang around it
+    Face_MM_FH = TriReduceMesh(ProxFem, I_MM_FH)
+    
+    # create a triang with them
+    Patch_MM_FH = TriDilateMesh(ProxFem, Face_MM_FH, 40*CoeffMorpho)
+    
+    # STEP1: first sphere fit
+    FemHead0 = TriUnite(Patch_MM_FH,Patch_Top_FH)
     
     
     
@@ -730,7 +756,7 @@ def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_pl
     # Check that the distal femur is 'below' the proximal femur or invert Z0
     Z0 = V_all[0]
     Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-    Z0 *= np.sign(np.dot((np.mean(ProxFemTri['Points']) - np.mean(DistFemTri['Points'])),Z0))
+    Z0 *= np.sign(np.dot((np.mean(ProxFemTri['Points'], axis=0) - np.mean(DistFemTri['Points'], axis=0)),Z0))
     AuxCSInfo['Z0'] = Z0
     
     # Find Femoral Head Center

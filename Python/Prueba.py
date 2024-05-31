@@ -21,7 +21,8 @@ from Public_functions import load_mesh, freeBoundary
 
 from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS
 
-from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles
+from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
+    TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -488,8 +489,8 @@ Femur = load_mesh(ruta + 'Python/femur_new_simplify.stl')
 # plt.show()
 # # -------------
 
-# U_0 = np.reshape(np.array([0, 0, 1]),(3, 1))
-# L_ratio = 0.33
+U_0 = np.reshape(np.array([0, 0, 1]),(3, 1))
+L_ratio = 0.33
 
 # Convert tiangulation dict to mesh object --------
 tmp_Femur = mesh.Mesh(np.zeros(Femur['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
@@ -500,213 +501,157 @@ for i, f in enumerate(Femur['ConnectivityList']):
 tmp_Femur.update_normals()
 # ------------------------------------------------
 
-# V_all, _, _, _, _ = TriInertiaPpties(Femur)
+V_all, _, _, _, _ = TriInertiaPpties(Femur)
 
-# # Initial estimate of the Distal-to-Proximal (DP) axis Z0
-# Z0 = V_all[0]
-# Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+# Initial estimate of the Distal-to-Proximal (DP) axis Z0
+Z0 = V_all[0]
+Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
 
-# # Reorient Z0 according to U_0
-# Z0 *= np.sign(np.dot(U_0.T, Z0))
+# Reorient Z0 according to U_0
+Z0 *= np.sign(np.dot(U_0.T, Z0))
 
-# # Get the central 60% of the bone -> The femur diaphysis
-# LengthBone = np.max(np.dot(Femur['Points'], Z0)) - np.min(np.dot(Femur['Points'], Z0))
-# L_ratio = 0.20
-
-# # First remove the top 20% percent
-# alt_top = np.max(np.dot(Femur['Points'], Z0)) - L_ratio*LengthBone
-# ElmtsTmp1 = np.where(np.dot(tmp_Femur.centroids, Z0) < alt_top)[0]
-# TrTmp1 = TriReduceMesh(Femur, ElmtsTmp1)
-# TrTmp1 = TriFillPlanarHoles(TrTmp1)
-# # Convert tiangulation dict to mesh object --------
-# tmp_TrTmp1 = mesh.Mesh(np.zeros(TrTmp1['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
-# for i, f in enumerate(TrTmp1['ConnectivityList']):
-#     for j in range(3):
-#         tmp_TrTmp1.vectors[i][j] = TrTmp1['Points'][f[j],:]
-# # update normals
-# tmp_TrTmp1.update_normals()
-# # ------------------------------------------------
-
-# # Then remove the bottom 20% percent
-# alt_bottom = np.min(np.dot(Femur['Points'], Z0)) + L_ratio*LengthBone
-# ElmtsTmp2 = np.where(np.dot(tmp_TrTmp1.centroids, Z0) > alt_bottom)[0]
-# TrTmp2 = TriReduceMesh(TrTmp1, ElmtsTmp2)
-# FemurDiaphysis = TriFillPlanarHoles(TrTmp2)
+# Get the central 60% of the bone -> The femur diaphysis
+LengthBone = np.max(np.dot(Femur['Points'], Z0)) - np.min(np.dot(Femur['Points'], Z0))
 
 
-
-
-# # # # create the proximal bone part
-# # # Zprox = np.max(np.dot(TrLB['Points'], Z0)) - L_ratio*LengthBone
-# # # ElmtsProx = np.where(np.dot(tmp_TrLB.centroids, Z0) > Zprox)[0]
-# # # TrProx = TriReduceMesh(TrLB, ElmtsProx)
-# # # TrProx = TriFillPlanarHoles(TrProx)
+# create the proximal bone part
+Zprox = np.max(np.dot(Femur['Points'], Z0)) - L_ratio*LengthBone
+ElmtsProx = np.where(np.dot(tmp_Femur.centroids, Z0) > Zprox)[0]
+ProxFem = TriReduceMesh(Femur, ElmtsProx)
+ProxFem = TriFillPlanarHoles(ProxFem)
 
 # fig = plt.figure()
 # ax = fig.add_subplot(projection = '3d')
-# ax.plot_trisurf(FemurDiaphysis['Points'][:,0], FemurDiaphysis['Points'][:,1], FemurDiaphysis['Points'][:,2], triangles = FemurDiaphysis['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+# ax.plot_trisurf(ProxFem['Points'][:,0], ProxFem['Points'][:,1], ProxFem['Points'][:,2], triangles = ProxFem['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
 # ax.set_box_aspect([1,1,1])
 # plt.show()
 # # # # -------------
 
-# FreeB = {}
-# FreeB['ID'] = []
-# FreeB['Coord'] = []
+femurTri = Femur
 
-# for IDpoint, Point in enumerate(TrProx['Points']):
-#     vertex_triangle = []
-#     CloudPoint = []
-#     tmp_norm = []
-    
-#     # identify the triangles whit this vertex
-#     vertex_triangle = list(np.where(TrProx['ConnectivityList'] == IDpoint)[0])
-    
-#     # identify the neighborhood of points (all point from triangles that inlcude Point)
-#     for neighbor in vertex_triangle:
-        
-#         v0 = TrProx['Points'][TrProx['ConnectivityList'][neighbor, 0]]
-#         v1 = TrProx['Points'][TrProx['ConnectivityList'][neighbor, 1]]
-#         v2 = TrProx['Points'][TrProx['ConnectivityList'][neighbor, 2]]
-        
-#         if np.linalg.norm(v0 - Point) != 0:
-#             CloudPoint.append(v0)
-#         if np.linalg.norm(v1 - Point) != 0:
-#             CloudPoint.append(v1)
-#         if np.linalg.norm(v2 - Point) != 0:
-#             CloudPoint.append(v2)
-    
-#     # for each neighborhood compute the norm with the another neighborhood. 
-#     # If this norm is zero in minus of two times, this point is in the bounder
-#     for neig in CloudPoint:
-#         tmp_norm = [np.linalg.norm(neig - val) for val in CloudPoint]
-#         if tmp_norm.count(0) < 2:
-#             # duplicate points
-#             FreeB['ID'].append(IDpoint)
-#             FreeB['Coord'].append(Point)
+U_DistToProx = femur_guess_CS(femurTri, 0)
+ProxFemTri, DistFemTri = cutLongBoneMesh(femurTri, U_DistToProx)
 
-# # remove duplicate points
-# FreeB['ID'] = FreeB['ID'][::2]
-# FreeB['Coord'] = FreeB['Coord'][::2]
-# FreeB = freeBoundary(TrProx)
+# Compute the coefficient for morphology operations
+CoeffMorpho = computeTriCoeffMorpho(femurTri)
+
+# Get inertial principal vectors V_all of the femur geometry & volum center
+V_all, CenterVol, InertiaMatrix, _, _ = TriInertiaPpties(femurTri)
+
+# -------------------------------------
+# Initial Coordinate system (from inertial axes and femoral head):
+# * Z0: points upwards (inertial axis) 
+# * Y0: points medio-lat 
+# -------------------------------------
+# coordinate system structure to store coordinate system's info
+AuxCSInfo = {}
+AuxCSInfo['CenterVol'] = CenterVol
+AuxCSInfo['V_all'] = V_all
+
+# Check that the distal femur is 'below' the proximal femur or invert Z0
+Z0 = V_all[0]
+Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+Z0 *= np.sign(np.dot((np.mean(ProxFemTri['Points'], axis=0) - np.mean(DistFemTri['Points'], axis=0)),Z0))
+AuxCSInfo['Z0'] = Z0
 
 
-# # # -------------
-# # Fill planar convex holes in the triangulation
-# # For now the holes have to be planar
-# # FOR NOW WORKS WITH ONLY ONE HOLE
-# # 
-# # Author: Emiliano P. Ravera (emiliano.ravera@uner.edu.ar)
-# # -------------------------------
+# GIBOC_femur_fitSphere2FemHead ::::::::::::::::::::::::::::::::::::::::::::
+
+CSs = AuxCSInfo
+FemHead = {}
+
+# CSs['Z0'] = femur_guess_CS(Femur, 0)
+
+# Convert tiangulation dict to mesh object --------
+tmp_ProxFem = mesh.Mesh(np.zeros(ProxFemTri['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+for i, f in enumerate(ProxFemTri['ConnectivityList']):
+    for j in range(3):
+        tmp_ProxFem.vectors[i][j] = ProxFemTri['Points'][f[j],:]
+# update normals
+tmp_ProxFem.update_normals()
+# ------------------------------------------------
+print('Computing centre of femoral head:')
+
+# Find the most proximal on femur top head
+I_Top_FH = []
+I_Top_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Z0'])))
+
+# most prox point (neighbors of I_Top_FH)
+for nei in ProxFemTri['ConnectivityList'][I_Top_FH].reshape(-1, 1):
+    I_Top_FH += list(list(np.where(ProxFemTri['ConnectivityList'] == nei))[0])
+
+# triang around it
+Face_Top_FH = TriReduceMesh(ProxFemTri, I_Top_FH)
+
+# create a triang with them
+CoeffMorpho = 2/40
+Patch_Top_FH = TriDilateMesh(ProxFemTri,Face_Top_FH,40*CoeffMorpho)
+
+# Get an initial ML Axis Y0 (pointing medio-laterally)
+# NB: from centerVol, OT points upwards to ~HJC, that is more medial than
+# Z0, hence cross(CSs.Z0,OT) points anteriorly and Y0 medially
+OT = np.mean(Patch_Top_FH['Points'], axis=0) - CSs['CenterVol'].T
+tmp_Y0 = np.cross(np.cross(CSs['Z0'].T, OT), CSs['Z0'].T)
+CSs['Y0'] = preprocessing.normalize(tmp_Y0.T, axis=0)
+
+# Find a the most medial (MM) point on the femoral head (FH)
+I_MM_FH = []
+I_MM_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Y0'])))
+
+# most prox point (neighbors of I_MM_FH)
+for nei in ProxFemTri['ConnectivityList'][I_MM_FH].reshape(-1, 1):
+    I_MM_FH += list(list(np.where(ProxFemTri['ConnectivityList'] == nei))[0])
+
+# triang around it
+Face_MM_FH = TriReduceMesh(ProxFemTri, I_MM_FH)
+
+# create a triang with them
+Patch_MM_FH = TriDilateMesh(ProxFemTri, Face_MM_FH, 40*CoeffMorpho)
+
+# STEP1: first sphere fit
+FemHead0 = TriUnite(Patch_MM_FH,Patch_Top_FH)
+
 # Trout = {}
-# FreeB = freeBoundary(TrProx)
-# Tr = TrProx
+# # Points
+# Tr1_Points = list(Patch_Top_FH['Points'])
+# Tr2_Points = list(Patch_MM_FH['Points'])
 
-# if not FreeB:
-#     print('No holes on triangulation.')
-#     Trout = TrProx
-#     # return Trout
+# ind_SharedPoints = [p for p, v2 in enumerate(Tr2_Points) for v1 in Tr1_Points if np.linalg.norm(v1-v2) == 0]
 
-# # Fill the holes
-# # center of the triangulation with hole
-# TriCenter = np.mean(Tr['Points'], axis=0)
-# TriCenter = np.reshape(TriCenter,(TriCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
+# New_Points = Tr1_Points + [p for i, p in enumerate(Tr2_Points) if i not in ind_SharedPoints]
+# # New_ConnectivityList = Tr1_ConnectivityList + [v for i, v in enumerate(Tr2_ConnectivityList) if i not in ind_SharedPoints]
 
-# # center onf the hole
-# HoleCenter = np.mean(FreeB['Coord'], axis=0)
-# HoleCenter = np.reshape(HoleCenter,(HoleCenter.size, 1)) # convert d (3,) to 2d (3,1) vector
+# # Connectility List
+# Tr1_ConnectivityList = list(Patch_Top_FH['ConnectivityList'])
+# Tr2_ConnectivityList = list(Patch_MM_FH['ConnectivityList'])
 
-# NewNode = np.max(Tr['ConnectivityList']) + 1
-
-# U = preprocessing.normalize(HoleCenter-TriCenter, axis=0)
-
-# ConnecL = []
-# Free_Points = FreeB['Coord']
-
-# # create triangles from Free Points
-# for IDpoint in FreeB['ID']:
-#     #  identify triangles that included a free point
-#     triangles = list(np.where(TrProx['ConnectivityList'] == IDpoint))[0]
-
-#     for tri in triangles:
-#         # identify the triangle and line that include two free ponits
-#         points = [p for p in TrProx['ConnectivityList'][tri] if p in FreeB['ID']]
-        
-#         if len(points) == 2:
-
-#             ind_p1 = np.where(FreeB['ID'] == points[0])[0][0]
-#             ind_p2 = np.where(FreeB['ID'] == points[1])[0][0]
-            
-#             p1 = FreeB['Coord'][ind_p1]
-#             p2 = FreeB['Coord'][ind_p2]
-            
-#             Vctr1 = p1 - HoleCenter.T
-#             Vctr2 = p2 - HoleCenter.T
-            
-#             normal = preprocessing.normalize(np.cross(Vctr1, Vctr2), axis=1)
-            
-#             # Invert node ordering if the normals are inverted
-#             if np.dot(normal, U) < 0:
-#                 ConnecL.append(np.array([points[0], NewNode, points[1]]))
-#             else:
-#                 ConnecL.append(np.array([points[0], points[1], NewNode]))
-      
-# ConnecL = list(map(tuple, ConnecL))        
-# ConnecL = list(np.array(ConnecL, dtype = 'int'))
-            
-# tmp_Points = list(Tr['Points'])
-# tmp_Points.append(HoleCenter[:,0].T)
-# NewPoints = np.array(tmp_Points)
-
-# tmp_ConnectivityList = list(Tr['ConnectivityList'])
-# tmp_ConnectivityList += ConnecL 
-
-# Trout['Points'] = NewPoints
-# Trout['ConnectivityList'] = np.array(tmp_ConnectivityList)
-
-# # remover possible lonely triangles
-# FreeB1 = freeBoundary(Trout)
-
-# while len(FreeB1['ID']) > 0:
-
-#     tmp_ConnectList_out = list(Trout['ConnectivityList'])
-#     tmp_Points_out = list(Trout['Points'])
-#     list_delete = []
+# New_ConnectivityList = Tr1_ConnectivityList
+# # update the indexes of triangles for Tr2
+# for tri in Tr2_ConnectivityList:
+#     v0 = [pos for pos, val in enumerate(New_Points) if all(val == Tr2_Points[tri[0]])]
+#     v1 = [pos for pos, val in enumerate(New_Points) if all(val == Tr2_Points[tri[1]])]
+#     v2 = [pos for pos, val in enumerate(New_Points) if all(val == Tr2_Points[tri[2]])]
     
-#     for IDp in FreeB1['ID']:
-#         triangles = list(np.where(Trout['ConnectivityList'] == IDp))[0]
-#         if len(triangles) == 1:
-#             list_delete.append(triangles[0])
-    
-#     list_delete.sort()
-#     list_delete = list_delete[::-1]
-            
-#     tmp_ConnectList_out = [val for pos, val in enumerate(tmp_ConnectList_out) if pos not in list_delete]
-    
-#     new_points = np.array(tmp_ConnectList_out)
-#     for id_tri in list_delete:
-#         new_points[new_points >= id_tri] -= 1
-    
-#     tmp_Points_out = [val for pos, val in enumerate(tmp_Points_out) if pos not in list_delete]
-    
-#     Trout['Points'] = np.array(tmp_Points_out)
-#     Trout['ConnectivityList'] = new_points
-    
-#     # check the condition to finish while loop
-#     FreeB1 = freeBoundary(Trout)
-    
-    
-# fig = plt.figure(2)
-# ax1 = fig.add_subplot(projection = '3d')
-# ax1.plot_trisurf(Trout['Points'][:,0], Trout['Points'][:,1], Trout['Points'][:,2], triangles = Trout['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'red')
-# ax1.set_box_aspect([1,1,1])
-# plt.show()
+#     New_ConnectivityList.append(np.array([v0[0], v1[0], v2[0]]))
+
+# Trout['Points'] = np.array(New_Points)
+# Trout['ConnectivityList'] = np.array(New_ConnectivityList)
 
 
-# FreeB2 = freeBoundary(Trout1)
+fig = plt.figure()
+ax = fig.add_subplot(projection = '3d')
+ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
 
-# list_delete = []
-# for IDp in FreeB2['ID']:
-#     triangles = list(np.where(Trout['ConnectivityList'] == IDp))[0]
-#     print(triangles)
-#     # if len(triangles) == 1:
-#     #     list_delete.append(triangles[0])
+ax.plot_trisurf(Patch_Top_FH['Points'][:,0], Patch_Top_FH['Points'][:,1], Patch_Top_FH['Points'][:,2], triangles = Patch_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
+ax.plot_trisurf(Face_Top_FH['Points'][:,0], Face_Top_FH['Points'][:,1], Face_Top_FH['Points'][:,2], triangles = Face_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
+
+ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM_FH['Points'][:,2], triangles = Patch_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'blue')
+ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
+
+ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
+
+
+ax.set_box_aspect([1,1,1])
+plt.show()
+
+

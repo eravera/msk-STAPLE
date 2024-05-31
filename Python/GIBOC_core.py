@@ -409,35 +409,34 @@ def TriDilateMesh(TRsup = {}, TRin = {}, nbElmts = 0):
     TRout = {}
     
     # Round the number of elements to upper integer
-    nbElmts = np.ceil(nbElmts)
+    nbElmts = int(np.ceil(nbElmts))
     
     # returns the rows of the intersection in the same order as they appear in 
     # the first vector given as input.
-    ia = [i for i, v in enumerate(TRsup['Points']) if np.all(v == TRin['Points'][i])]
-    ib = [i for i, v in enumerate(TRin['Points']) if np.all(v == TRsup['Points'][i])]
+    ia = [i for i, v in enumerate(TRsup['Points']) for u in TRin['Points'] if np.all(v == u)]
     
     # Get the elements attached to the identified vertices
     ElmtsOK = []
     # Initially, ElmtsOk are the elements on TRsup that correspond to the geometry of the TRin
     for tri in ia:
-       ElmtsOK.append(list(list(np.where(TRsup['ConnectivityList'] == tri))[0])) 
-    
+       ElmtsOK += list(list(np.where(TRsup['ConnectivityList'] == tri))[0])
     # remove duplicated elements
     ElmtsOK = list(set(ElmtsOK))
-    ElmtsInitial = ElmtsOK
-    
+    ElmtsInitial = TRsup['ConnectivityList'][ElmtsOK].reshape(-1, 1)
+
     # Get the neighbours of the identified elements, loop
-    for dil in nbElmts:
+    for dil in range(nbElmts):
         # Identify the neighbours of the elements of the ElmtsOK subset
         ElmtNeighbours = []
         for nei in ElmtsInitial:
-            ElmtNeighbours = list(list(np.where(TRsup['ConnectivityList'] == nei))[0])
-        
+            ElmtNeighbours += list(list(np.where(TRsup['ConnectivityList'] == nei))[0])
+                    
         # remove duplicated elements
-        ElmtsInitial = list(set(ElmtNeighbours))
+        ElmtNeighbours = list(set(ElmtNeighbours))
+        ElmtsInitial = TRsup['ConnectivityList'][ElmtNeighbours].reshape(-1, 1)
         
         # Add the new neighbours to the list of elements ElmtsOK
-        ElmtsOK += ElmtsInitial
+        ElmtsOK += ElmtNeighbours
         # remove duplicated elements
         ElmtsOK = list(set(ElmtsOK))
     
@@ -445,7 +444,39 @@ def TriDilateMesh(TRsup = {}, TRin = {}, nbElmts = 0):
     TRout = TriReduceMesh(TRsup, ElmtsOK)    
     
     return TRout
+
+# -----------------------------------------------------------------------------
+def TriUnite(Tr1 = {}, Tr2 = {}):
+    # -------------------------------------------------------------------------
+    # UNITE two unconnected triangulation dict, Tr1, Tr2
+    # -------------------------------------------------------------------------
+    Trout = {}
+    # Points
+    Tr1_Points = list(Tr1['Points'])
+    Tr2_Points = list(Tr2['Points'])
+
+    ind_SharedPoints = [p for p, v2 in enumerate(Tr2_Points) for v1 in Tr1_Points if np.linalg.norm(v1-v2) == 0]
+
+    New_Points = Tr1_Points + [p for i, p in enumerate(Tr2_Points) if i not in ind_SharedPoints]
+    # New_ConnectivityList = Tr1_ConnectivityList + [v for i, v in enumerate(Tr2_ConnectivityList) if i not in ind_SharedPoints]
+
+    # Connectility List
+    Tr1_ConnectivityList = list(Tr1['ConnectivityList'])
+    Tr2_ConnectivityList = list(Tr2['ConnectivityList'])
+
+    New_ConnectivityList = Tr1_ConnectivityList
+    # update the indexes of triangles for Tr2
+    for tri in Tr2_ConnectivityList:
+        v0 = [pos for pos, val in enumerate(New_Points) if all(val == Tr2_Points[tri[0]])]
+        v1 = [pos for pos, val in enumerate(New_Points) if all(val == Tr2_Points[tri[1]])]
+        v2 = [pos for pos, val in enumerate(New_Points) if all(val == Tr2_Points[tri[2]])]
+        
+        New_ConnectivityList.append(np.array([v0[0], v1[0], v2[0]]))
+
+    Trout['Points'] = np.array(New_Points)
+    Trout['ConnectivityList'] = np.array(New_ConnectivityList)
     
+    return Trout
 # -----------------------------------------------------------------------------
 # GeometricFun
 # -----------------------------------------------------------------------------

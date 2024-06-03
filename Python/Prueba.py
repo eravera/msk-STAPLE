@@ -22,7 +22,7 @@ from Public_functions import load_mesh, freeBoundary
 from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
-    TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite
+    TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -584,7 +584,7 @@ for nei in ProxFemTri['ConnectivityList'][I_Top_FH].reshape(-1, 1):
 Face_Top_FH = TriReduceMesh(ProxFemTri, I_Top_FH)
 
 # create a triang with them
-CoeffMorpho = 2/40
+CoeffMorpho = 1/40
 Patch_Top_FH = TriDilateMesh(ProxFemTri,Face_Top_FH,40*CoeffMorpho)
 
 # Get an initial ML Axis Y0 (pointing medio-laterally)
@@ -592,6 +592,7 @@ Patch_Top_FH = TriDilateMesh(ProxFemTri,Face_Top_FH,40*CoeffMorpho)
 # Z0, hence cross(CSs.Z0,OT) points anteriorly and Y0 medially
 OT = np.mean(Patch_Top_FH['Points'], axis=0) - CSs['CenterVol'].T
 tmp_Y0 = np.cross(np.cross(CSs['Z0'].T, OT), CSs['Z0'].T)
+# tmp_Y0 = np.cross(OT, np.cross(CSs['Z0'].T), CSs['Z0'].T)
 CSs['Y0'] = preprocessing.normalize(tmp_Y0.T, axis=0)
 
 # Find a the most medial (MM) point on the femoral head (FH)
@@ -610,6 +611,104 @@ Patch_MM_FH = TriDilateMesh(ProxFemTri, Face_MM_FH, 40*CoeffMorpho)
 
 # STEP1: first sphere fit
 FemHead0 = TriUnite(Patch_MM_FH,Patch_Top_FH)
+
+Center, Radius, ErrorDist = sphere_fit(FemHead0['Points'])
+sph_RMSE = np.mean(abs(ErrorDist))
+
+# # print
+# print('     Fit #1: RMSE: ' + str(sph_RMSE) + ' mm');
+
+# if debug_prints:
+#     print('----------------')
+#     print('First Estimation')
+#     print('----------------')
+#     print('Centre: ' + str(Centre))
+#     print('Radius: ' + str(Radius))
+#     print('Mean Res: ' + str(sph_RMSE))
+#     print('-----------------')
+
+# STEP2: dilate femoral head mesh and sphere fit again
+# IMPORTANT: TriDilateMesh "grows" the original mesh, does not create a larger one!
+FemHead_dil_coeff = 1.5
+
+DilateFemHeadTri = TriDilateMesh(ProxFemTri, FemHead0, round(FemHead_dil_coeff*Radius*CoeffMorpho))
+CenterFH, RadiusDil, ErrorDistCond = sphere_fit(DilateFemHeadTri['Points'])
+
+sph_RMSECond = np.mean(abs(ErrorDistCond))
+
+# # print
+# print('     Fit #2: RMSE: ' + str(sph_RMSECond) + ' mm');
+
+# if debug_prints:
+#     print('----------------')
+#     print('First Estimation')
+#     print('----------------')
+#     print('Centre: ' + str(CenterFH))
+#     print('Radius: ' + str(RadiusDil))
+#     print('Mean Res: ' + str(sph_RMSECond))
+#     print('-----------------')
+
+# check
+if ~(RadiusDil > Radius):
+    print('Dilated femoral head smaller than original mesh. Please check manually.')
+
+# Theorical Normal of the face (from real fem centre to dilate one)
+# Convert tiangulation dict to mesh object --------
+TriDilateFemHead = mesh.Mesh(np.zeros(DilateFemHeadTri['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+for i, f in enumerate(DilateFemHeadTri['ConnectivityList']):
+    for j in range(3):
+        TriDilateFemHead.vectors[i][j] = DilateFemHeadTri['Points'][f[j],:]
+# update normals
+TriDilateFemHead.update_normals()
+# ------------------------------------------------
+CPts_PF_2D = TriDilateFemHead.centroids - CenterFH
+normal_CPts_PF_2D = preprocessing.normalize(CPts_PF_2D, axis=1)
+
+# COND1: Keep points that display a less than 10deg difference between the actual
+# normals and the sphere simulated normals
+FemHead_normals_thresh = 0.975 # acosd(0.975) = 12.87 deg
+Cond1 = [1 if (np.dot(val, TriDilateFemHead.get_unit_normals()[pos])) > \
+         FemHead_normals_thresh else 0 for pos, val in enumerate(normal_CPts_PF_2D)]
+
+# COND2: Delete points far from sphere surface outside [90%*Radius 110%*Radius]
+Cond2 = [1 if abs(np.sqrt(np.dot(val, CPts_PF_2D[pos])) - Radius) < \
+         0.1*Radius else 0 for pos, val in enumerate(CPts_PF_2D)]
+
+# [LM] I have found both conditions do not work always, when combined
+# check if using both conditions produces results
+single_cond = 0
+min_number_of_points = 20
+
+if np.sum(np.array(Cond1 + Cond2)) > min_number_of_points:
+    applied_Cond = list(np.logical_and(Cond1, Cond2))
+else:
+    # flag that only one condition is used
+    single_cond = 1
+    cond1_count = np.sum(np.array(Cond1))
+    applied_Cond = Cond1
+
+# search within conditions Cond1 and Cond2
+Face_ID_PF_2D_onSphere = np.where(applied_Cond)[0]
+
+# get the mesh and points on the femoral head 
+FemHead = TriReduceMesh(DilateFemHeadTri, Face_ID_PF_2D_onSphere)
+
+# if just one condition is active JB suggests to keep largest patch
+# if single_cond:
+    # FemHead = TriKeepLargestPatch(FemHead)
+
+
+
+
+
+    
+
+
+
+
+
+
+
 
 # Trout = {}
 # # Points
@@ -649,6 +748,11 @@ ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM
 ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
 
 ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
+
+ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'red')
+
+# # Plot sphere
+# ax.plot_surface(x + Centre[0], y + Centre[1], z + Centre[2], color = 'red')
 
 
 ax.set_box_aspect([1,1,1])

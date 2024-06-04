@@ -20,10 +20,7 @@ function [TrProx, TrDist] = cutLongBoneMesh(TrLB, U_0, L_ratio)
 % to customize cuts of the entire bone
 if nargin < 2
     U_0 = [0; 0; 1];
-    warning("Distal to proximal direction of long bone is based on the"+...
-        " assumption that the bone distal to proximal axis is oriented"+...
-        " +Z_CT or +Z_MRI vector of the imaging system. If it's not"+...
-        " the case the results might be wrong.")
+    warning('Distal to proximal direction of long bone is based on the assumption that the bone distal to proximal axis is oriented +Z_CT or +Z_MRI vector of the imaging system. If its not the case the results might be wrong.')
     L_ratio = 0.33;
 elseif nargin == 2
     L_ratio = 0.33;

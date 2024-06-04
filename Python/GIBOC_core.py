@@ -707,6 +707,8 @@ def sphere_fit(point_cloud):
     radius = (sum(np.linalg.norm(np.array(point_cloud) - sphere_center, axis=1))
               /len(point_cloud))
     
-    ErrorDist = sum((point_cloud - sphere_center)**2) - radius**2
-    
+    ErrorDist = []
+    for p in point_cloud:
+        ErrorDist.append(sum((p - sphere_center)**2) - radius**2)
+        
     return sphere_center, radius, ErrorDist

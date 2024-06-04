@@ -19,7 +19,7 @@ function [ Curves , TotArea , InterfaceTri ] = TriPlanIntersect( Tr, n , d, debu
 
 % Check Arguments in
 if nargin < 3
-    error("Not engough input argument for TriPlanIntersect");
+    error('Not engough input argument for TriPlanIntersect');
 elseif nargin == 3
     debug_plots = 0;
 end
@@ -51,8 +51,7 @@ end
 Pts_OverUnder = (Pts*n + d > 0) - (Pts*n + d < 0);
 
 if sum(Pts_OverUnder==0)>0
-    warnings("Points were found lying exactly on the intersecting" +...
-        " plan, this case might not be correctly handled")
+    warnings('Points were found lying exactly on the intersecting plan, this case might not be correctly handled')
 end
 
 % Get the facets,elements/triangles/ intersecting the plan
@@ -70,7 +69,7 @@ if isempty(Elmts_Intersecting)
     Curves(1).Area = 0;
     Curves(1).Hole = 0;
     Curves(1).Text = 'No Intersection';
-    warning("No intersection found between the plane and the triangulation")
+    warning('No intersection found between the plane and the triangulation')
     return
 end
 
@@ -121,7 +120,7 @@ for i=I_Edges_Intersecting'
     elseif EdgeNbOccurences(i) == 1
         EdgeCorrepondance(i) = i;
     else
-        warning("Intersecting edge appear in 3 triangles, not good")
+        warning('Intersecting edge appear in 3 triangles, not good')
     end
 end
 

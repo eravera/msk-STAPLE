@@ -161,7 +161,7 @@ def TriMesh2DProperties(Tr = {}):
     
     # compute the area for each trinagle of the mesh
     Properties['Areas'] = Tr_mesh.areas
-    
+        
     # compute the total area of the mesh
     Properties['TotalArea'] = np.sum(Properties['Areas'])
     
@@ -383,7 +383,8 @@ def computeTriCoeffMorpho(Tr = {}):
     PptiesTriObj = TriMesh2DProperties(Tr)
     
     # Assume triangles are equilaterals
-    meanEdgeLength = np.sqrt( (4/np.sqrt(3))*(PptiesTriObj['TotalArea']/np.size(Tr['ConnectivityList'])) )
+    # meanEdgeLength = np.sqrt( (4/np.sqrt(3))*(PptiesTriObj['TotalArea']/np.size(Tr['ConnectivityList'])) )
+    meanEdgeLength = np.sqrt( (4/np.sqrt(3))*(PptiesTriObj['TotalArea']/len(Tr['ConnectivityList'])) )
     
     # Get the coefficient for morphology operations
     CoeffMorpho = 0.5 / meanEdgeLength
@@ -477,6 +478,107 @@ def TriUnite(Tr1 = {}, Tr2 = {}):
     Trout['ConnectivityList'] = np.array(New_ConnectivityList)
     
     return Trout
+
+# -----------------------------------------------------------------------------
+def TriKeepLargestPatch(Trin = {}):
+    # -------------------------------------------------------------------------
+    # Keep the largest (by area) connected patch of a triangulation dict
+    # 
+    # Inputs:
+    # TR: A triangulation dict with n Elements
+    # -------------------------------------------------------------------------
+    TRout = {}
+    
+    # Trin2 = TriErodeMesh(TRin,1)
+    
+    # Segments = freeBoundary(Trin2)
+    
+    NodesIDKept = []
+    # if NodesKept  !=  []:
+    #     if np.sum(np.mod(NodesKept, 1)) == 0: # NodesID given
+    #         NodesIDKept = NodesKept
+    #     else: # Nodes Coordinates given
+    #         NodesIDKept = [np.where(TR['Points'] == coord)[0][0] for coord in NodesKept]
+        
+    #     NodesIDKept = np.sort(NodesIDKept)
+    #     PointsKept = TR['Points'][NodesIDKept]
+        
+    # if ElmtsKept  !=  []:
+    #     if np.sum(np.mod(ElmtsKept, 1)) == 0: # ElmtsID given
+    #         tmp_NodesIDKept = TR['ConnectivityList'][ElmtsKept]
+    #         NodesIDKept = np.unique(tmp_NodesIDKept.ravel())
+            
+    #         ElmtsIDKept = ElmtsKept
+    #     else: # Elements connectivity given
+    #         tmp_ElmtsIDKept = [np.where(TR['ConnectivityList'] == tri)[0][0] for tri in ElmtsKept]
+    #         ElmtsIDKept = np.unique(np.array(tmp_ElmtsIDKept))
+        
+    #     ElmtsKept = TR['ConnectivityList'][ElmtsIDKept]
+    #     tmp_ElmtsKept = np.zeros(np.shape(ElmtsKept))
+    #     for pos, val in enumerate(NodesIDKept):
+    #         ind = np.where(ElmtsKept == val)
+    #         tmp_ElmtsKept[ind] = pos
+        
+    #     PointsKept = TR['Points'][NodesIDKept]
+    #     ElmtsKept = tmp_ElmtsKept
+    # else:
+    #     tmp_ElmtsKept = []
+    #     for tri in TR['ConnectivityList']:
+    #         if set(tri).issubset(NodesIDKept):
+    #             tmp_ElmtsKept.append(tri)
+        
+    #     ElmtsKept = np.array(tmp_ElmtsKept)
+    #     tmp_ElmtsKept = np.zeros(np.shape(ElmtsKept))
+    #     for pos, val in enumerate(NodesIDKept):
+    #         ind = np.where(ElmtsKept == val)
+    #         tmp_ElmtsKept[ind] = pos
+        
+    # TRout['Points'] = PointsKept
+    # TRout['ConnectivityList'] = ElmtsKept.astype(int)
+            
+    return TRout
+
+# -----------------------------------------------------------------------------
+def TriErodeMesh(Trin = {}, nbElmts = 0):
+    # -------------------------------------------------------------------------
+    # 
+    # 
+    # -------------------------------------------------------------------------
+    TRout = {}
+    
+    nbElmts = np.ceil(nbElmts)
+    
+    Free = freeBoundary(Trin)    
+
+    ElmtsBorder = []
+    for pID in Free['ID']:
+        ElmtsBorder += list(np.where(Trin['ConnectivityList'] == pID)[0])
+
+    # remove duplicated elements
+    ElmtsBorder = list(set(ElmtsBorder))
+
+    # ElmtsBorder = FemHead['ConnectivityList'][Border].reshape(-1, 1)
+    ElmtsInitial = ElmtsBorder
+
+    if nbElmts > 1:
+        # Get the neighbours of the identified elements, loop
+        for nb in range(nbElmts-1):
+            # Identify the neighbours of the elements of the ElmtsOK subset
+            ElmtNeighbours = []
+            for nei in ElmtsInitial:
+                ElmtNeighbours += list(list(np.where(Trin['ConnectivityList'] == nei))[0])
+                        
+            # remove duplicated elements
+            ElmtNeighbours = list(set(ElmtNeighbours))
+            ElmtsInitial += ElmtNeighbours
+
+    tmp_kept = list(range(len(Trin['ConnectivityList'])))
+    ElemtsKept = list(set(tmp_kept) - set(ElmtsInitial))
+    # The output is a subset of TRsup with ElmtsKept
+    TRout = TriReduceMesh(Trin, ElemtsKept)
+
+    return TRout
+
 # -----------------------------------------------------------------------------
 # GeometricFun
 # -----------------------------------------------------------------------------
@@ -662,53 +764,53 @@ def plotBoneLandmarks(BLDict, ax, label_switch = 1):
 #%% ---------------------------------------------------------------------------
 # FittingFun
 # -----------------------------------------------------------------------------
-def sphere_fit(point_cloud):
-    """
-    author: https://programming-surgeon.com/en/sphere-fit-python/
+def sphere_fit(point_cloud):   
+    # -------------------------------------------------------------------------
+    # this fits a sphere to a collection of data using a closed form for the
+    # solution (opposed to using an array the size of the data set). 
+    # Minimizes Sum((x-xc)^2+(y-yc)^2+(z-zc)^2-r^2)^2
+    # x,y,z are the data, xc,yc,zc are the sphere's center, and r is the radius
+    #    
+    # Assumes that points are not in a singular configuration, real numbers, ...
+    # if you have coplanar data, use a circle fit with svd for determining the
+    # plane, recommended Circle Fit (Pratt method), by Nikolai Chernov
+    # http://www.mathworks.com/matlabcentral/fileexchange/22643
+    # 
+    # Input:
+    # X: n x 3 matrix of cartesian data
+    # Outputs:
+    # Center: Center of sphere 
+    # Radius: Radius of sphere
+    # Author:
+    # Alan Jennings, University of Dayton
+    # 
+    # Modified to add distance to sphere -> ErrorDist
     
-    Modified (eravera) to add distance to sphere -> ErrorDist
+    A = np.zeros((3,3))
+    A[0,0] = np.mean(point_cloud[:,0]*(point_cloud[:,0] - np.mean(point_cloud[:,0])))
+    A[0,1] = 2*np.mean(point_cloud[:,0]*(point_cloud[:,1] - np.mean(point_cloud[:,1])))
+    A[0,2] = 2*np.mean(point_cloud[:,0]*(point_cloud[:,2] - np.mean(point_cloud[:,2])))
     
-    input
-        point_cloud: xyz of the point clouds　numpy array
-    output
-        radius : radius of the sphere
-        sphere_center : xyz of the sphere center
-        ErrorDist: distance to sphere
-    """
-
-    A_1 = np.zeros((3,3))
-    #A_1 : 1st item of A
-    v_1 = np.array([0.0,0.0,0.0])
-    v_2 = 0.0
-    v_3 = np.array([0.0,0.0,0.0])
-    # mean of multiplier of point vector of the point_clouds
-    # v_1, v_3 : vector, v_2 : scalar
-
-    N = len(point_cloud)
-    #N : number of the points
-
-    """Calculation of the sum(sigma)"""
-    for v in point_cloud:
-        v_1 += v
-        v_2 += np.dot(v, v)
-        v_3 += np.dot(v, v) * v
-
-        A_1 += np.dot(np.array([v]).T, np.array([v]))
-
-    v_1 /= N
-    v_2 /= N
-    v_3 /= N
-    A = 2 * (A_1 / N - np.dot(np.array([v_1]).T, np.array([v_1])))
-    # formula 2
-    b = v_3 - v_2 * v_1
-    # formula 3
-    sphere_center = np.dot(np.linalg.inv(A), b)
-    #　formula 1
-    radius = (sum(np.linalg.norm(np.array(point_cloud) - sphere_center, axis=1))
-              /len(point_cloud))
+    A[1,1] = np.mean(point_cloud[:,1]*(point_cloud[:,1] - np.mean(point_cloud[:,1])))
+    A[1,2] = 2*np.mean(point_cloud[:,1]*(point_cloud[:,2] - np.mean(point_cloud[:,2])))
+    
+    A[2,2] = np.mean(point_cloud[:,2]*(point_cloud[:,2] - np.mean(point_cloud[:,2])))
+    
+    A += A.T
+    
+    B = np.zeros((3,1))
+    B[0] = np.mean((point_cloud[:,0]**2 + point_cloud[:,1]**2 + point_cloud[:,2]**2)*(point_cloud[:,0] - np.mean(point_cloud[:,0]))) 
+    B[1] = np.mean((point_cloud[:,0]**2 + point_cloud[:,1]**2 + point_cloud[:,2]**2)*(point_cloud[:,1] - np.mean(point_cloud[:,1])))
+    B[2] = np.mean((point_cloud[:,0]**2 + point_cloud[:,1]**2 + point_cloud[:,2]**2)*(point_cloud[:,2] - np.mean(point_cloud[:,2])))
+    
+    sphere_center = np.dot(np.linalg.inv(A), B)
+    
+    radius = np.sqrt(np.mean(np.sum(np.array([(point_cloud[:,0]-sphere_center[0])**2, \
+                                              (point_cloud[:,1]-sphere_center[1])**2, \
+                                              (point_cloud[:,2]-sphere_center[2])**2]), axis=0)))
     
     ErrorDist = []
     for p in point_cloud:
-        ErrorDist.append(sum((p - sphere_center)**2) - radius**2)
+        ErrorDist.append(np.sum((p - sphere_center.T)**2) - radius**2)
         
-    return sphere_center, radius, ErrorDist
+    return sphere_center.T, radius, ErrorDist

@@ -22,7 +22,8 @@ from Public_functions import load_mesh, freeBoundary
 from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
-    TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit
+    TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
+    TriErodeMesh
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -673,6 +674,8 @@ normal_CPts_PF_2D = preprocessing.normalize(CPts_PF_2D, axis=1)
 # COND1: Keep points that display a less than 10deg difference between the actual
 # normals and the sphere simulated normals
 FemHead_normals_thresh = 0.975 # acosd(0.975) = 12.87 deg
+
+# sum((normal_CPts_PF_2D.*DilateFemHeadTri.faceNormal),2)
 Cond1 = [1 if np.abs((np.dot(val, TriDilateFemHead.get_unit_normals()[pos]))) > \
           FemHead_normals_thresh else 0 for pos, val in enumerate(normal_CPts_PF_2D)]
 
@@ -699,15 +702,17 @@ Face_ID_PF_2D_onSphere = np.where(applied_Cond)[0]
 # get the mesh and points on the femoral head 
 FemHead = TriReduceMesh(DilateFemHeadTri, Face_ID_PF_2D_onSphere)
 
-# # if just one condition is active JB suggests to keep largest patch
-# # if single_cond:
-#     # FemHead = TriKeepLargestPatch(FemHead)
+# if just one condition is active JB suggests to keep largest patch
+# if single_cond:
+    # FemHead = TriKeepLargestPatch(FemHead)
+
+
+Trin2 = TriErodeMesh(FemHead,1)
+
+Segments = freeBoundary(Trin2)
 
 
 
-
-
-    
 
 
 
@@ -727,15 +732,22 @@ ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri
 # ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM_FH['Points'][:,2], triangles = Patch_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'blue')
 # ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
 
-ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
+# ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
 
 ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.4, shade=False, color = 'red')
+# ax.plot_trisurf(TRout1['Points'][:,0], TRout1['Points'][:,1], TRout1['Points'][:,2], triangles = TRout1['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.4, shade=False, color = 'blue')
 
 # # Plot sphere
-# ax.plot_surface(x + Centre[0], y + Centre[1], z + Centre[2], color = 'red')
+# # Create a sphere
+# phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+# x = 5*np.sin(phi)*np.cos(theta)
+# y = 5*np.sin(phi)*np.sin(theta)
+# z = 5*np.cos(phi)
 
+# ax.plot_surface(x + Center[0,0], y + Center[0,1], z + Center[0,2], color = 'red')
+# ax.plot_surface(x + CenterFH[0,0], y + CenterFH[0,1], z + CenterFH[0,2], color = 'black')
 
-ax.set_box_aspect([1,1,1])
+# ax.set_box_aspect([1,1,1])
 plt.show()
 
 

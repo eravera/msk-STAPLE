@@ -812,5 +812,5 @@ def sphere_fit(point_cloud):
     ErrorDist = []
     for p in point_cloud:
         ErrorDist.append(np.sum((p - sphere_center.T)**2) - radius**2)
-        
+            
     return sphere_center.T, radius, ErrorDist

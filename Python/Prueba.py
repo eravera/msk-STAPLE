@@ -620,7 +620,7 @@ Patch_MM_FH = TriDilateMesh(ProxFemTri, Face_MM_FH, 40*CoeffMorpho)
 FemHead0 = TriUnite(Patch_MM_FH, Patch_Top_FH)
 
 Center, Radius, ErrorDist = sphere_fit(FemHead0['Points'])
-sph_RMSE = np.mean(np.abs(ErrorDist))/10
+sph_RMSE = np.mean(np.abs(ErrorDist))/10#/len(ErrorDist)
 
 # print
 print('     Fit #1: RMSE: ' + str(sph_RMSE) + ' mm');
@@ -641,7 +641,7 @@ FemHead_dil_coeff = 1.5
 DilateFemHeadTri = TriDilateMesh(ProxFemTri, FemHead0, round(FemHead_dil_coeff*Radius*CoeffMorpho))
 CenterFH, RadiusDil, ErrorDistCond = sphere_fit(DilateFemHeadTri['Points'])
 
-sph_RMSECond = np.mean(np.abs(ErrorDistCond))/10
+sph_RMSECond = np.mean(np.abs(ErrorDistCond))/10#/len(ErrorDistCond)
 
 # print
 print('     Fit #2: RMSE: ' + str(sph_RMSECond) + ' mm');
@@ -706,11 +706,56 @@ FemHead = TriReduceMesh(DilateFemHeadTri, Face_ID_PF_2D_onSphere)
 # if single_cond:
     # FemHead = TriKeepLargestPatch(FemHead)
 
+Tr = FemHead.copy()
+# Trin2 = TriErodeMesh(FemHead,1)
+# Tr = Trin2.copy()
+Border = freeBoundary(Tr)
+    
+border = list(set(list(Border['ID'])))
 
-Trin2 = TriErodeMesh(FemHead,1)
+Patch = {}
+patch = []
+i = 1
+j = 0
 
-Segments = freeBoundary(Trin2)
-
+if len(border) == 3:
+    
+    Patch[str(i)] = border
+    
+else:
+    p = border[0]
+    border.remove(p)
+    patch += [p]
+    
+    while border:
+            
+        t = np.where(Tr['ConnectivityList'] == p)[0]
+            
+        new_vertexs = list(set(list(Tr['ConnectivityList'][t].reshape(-1))))
+        new_vertexs.remove(p)
+        new_vertexs = np.array(new_vertexs)
+        
+        ind_nv = np.array([True if (val in border and val not in patch) else False for val in new_vertexs])
+        
+        if any(ind_nv):
+            new_vert_in_bord = list(new_vertexs[ind_nv])
+            patch += new_vert_in_bord
+            
+            # remove vertexs from border list
+            border = [v for v in border if v not in patch]
+            
+        elif j < len(patch):
+            p = patch[j]
+            j += 1
+                    
+        elif j == len(patch):
+            Patch[str(i)] = patch
+            patch = []
+            p = border[0]
+            patch += [p]
+            j = 0
+            i += 1
+        
 
 
 
@@ -734,7 +779,7 @@ ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri
 
 # ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
 
-ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.4, shade=False, color = 'red')
+ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'blue')
 # ax.plot_trisurf(TRout1['Points'][:,0], TRout1['Points'][:,1], TRout1['Points'][:,2], triangles = TRout1['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.4, shade=False, color = 'blue')
 
 # # Plot sphere
@@ -746,8 +791,27 @@ ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'
 
 # ax.plot_surface(x + Center[0,0], y + Center[0,1], z + Center[0,2], color = 'red')
 # ax.plot_surface(x + CenterFH[0,0], y + CenterFH[0,1], z + CenterFH[0,2], color = 'black')
+# for p in Segments['Coord']:
+#     ax.scatter(p[0], p[1], p[2], color = "green")
 
-# ax.set_box_aspect([1,1,1])
+for p1 in Patch['1']:
+    p = Tr['Points'][p1]
+    ax.scatter(p[0], p[1], p[2], color = "red")
+for p1 in Patch['2']:
+    p = Tr['Points'][p1]
+    ax.scatter(p[0], p[1], p[2], color = "orange")
+for p1 in Patch['3']:
+    p = Tr['Points'][p1]
+    ax.scatter(p[0], p[1], p[2], color = "green")
+for p1 in Patch['4']:
+    p = Tr['Points'][p1]
+    ax.scatter(p[0], p[1], p[2], color = "cyan")
+for p1 in Patch['5']:
+    p = Tr['Points'][p1]
+    ax.scatter(p[0], p[1], p[2], color = "magenta")
+
+    
+ax.set_box_aspect([1,1,1])
 plt.show()
 
 

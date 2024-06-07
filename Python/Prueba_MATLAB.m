@@ -17,4 +17,8 @@ pelvisTri = pelvisTri.pelvisTri;
 femurTri = load('/home/eravera/Documentos/Investigacion/Codigos MATLAB_PYTHON/STAPLE/Python/femur_Tri.mat');
 femurTri = femurTri.femurTri;
 
+U_DistToProx = femur_guess_CS( femurTri , 0 )
 [CS, JCS, FemurBL] = GIBOC_femur(femurTri);
+
+%figure()
+%quickPlotTriang(femurTri)

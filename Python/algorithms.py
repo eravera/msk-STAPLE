@@ -42,7 +42,9 @@ from GIBOC_core import TriInertiaPpties, \
                                  computeTriCoeffMorpho, \
                                   TriDilateMesh, \
                                    TriUnite, \
-                                    sphere_fit 
+                                    sphere_fit, \
+                                     TriKeepLargestPatch, \
+                                      TriOpenMesh
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -460,7 +462,7 @@ def femur_guess_CS(Femur, debug_plots = 0):
 # -----------------------------------------------------------------------------
 def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug_plots = 0, debug_prints = 0):
     # -------------------------------------------------------------------------
-    CSs = {} 
+    
     FemHead = {}
     # Convert tiangulation dict to mesh object --------
     tmp_ProxFem = mesh.Mesh(np.zeros(ProxFem['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
@@ -471,60 +473,69 @@ def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug
     tmp_ProxFem.update_normals()
     # ------------------------------------------------
     print('Computing centre of femoral head:')
-    
+
     # Find the most proximal on femur top head
     I_Top_FH = []
     I_Top_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Z0'])))
-    
+
     # most prox point (neighbors of I_Top_FH)
     for nei in ProxFem['ConnectivityList'][I_Top_FH].reshape(-1, 1):
         I_Top_FH += list(list(np.where(ProxFem['ConnectivityList'] == nei))[0])
-    
+
+    # remove duplicated vertex
+    I_Top_FH = list(set(I_Top_FH))
     # triang around it
     Face_Top_FH = TriReduceMesh(ProxFem, I_Top_FH)
-    
+
     # create a triang with them
-    Patch_Top_FH = TriDilateMesh(ProxFem, Face_Top_FH, 40*CoeffMorpho)
-    
+    Patch_Top_FH = TriDilateMesh(ProxFem,Face_Top_FH,40*CoeffMorpho)
+
     # Get an initial ML Axis Y0 (pointing medio-laterally)
     # NB: from centerVol, OT points upwards to ~HJC, that is more medial than
     # Z0, hence cross(CSs.Z0,OT) points anteriorly and Y0 medially
-    OT = np.mean(Patch_Top_FH['Points'], axis=0).T - CSs['CenterVol']
-    tmp_Y0 = np.cross(np.cross(CSs['Z0'], OT), CSs['Z0'])
-    CSs['Y0'] = np.linalg.norm(tmp_Y0)
-    
+    OT = np.mean(Patch_Top_FH['Points'], axis=0) - CSs['CenterVol'].T
+    tmp_Y0 = np.cross(np.cross(CSs['Z0'].T, OT), CSs['Z0'].T)
+    CSs['Y0'] = preprocessing.normalize(tmp_Y0.T, axis=0)
+
     # Find a the most medial (MM) point on the femoral head (FH)
     I_MM_FH = []
     I_MM_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Y0'])))
-    
-    # most prox point (neighbors of I_Top_FH)
+
+    # most prox point (neighbors of I_MM_FH)
     for nei in ProxFem['ConnectivityList'][I_MM_FH].reshape(-1, 1):
         I_MM_FH += list(list(np.where(ProxFem['ConnectivityList'] == nei))[0])
-    
+
+    # remove duplicated vertex
+    I_MM_FH = list(set(I_MM_FH))
     # triang around it
     Face_MM_FH = TriReduceMesh(ProxFem, I_MM_FH)
-    
+
     # create a triang with them
     Patch_MM_FH = TriDilateMesh(ProxFem, Face_MM_FH, 40*CoeffMorpho)
-    
+
     # STEP1: first sphere fit
-    FemHead0 = TriUnite(Patch_MM_FH,Patch_Top_FH)
-    
-    Centre, Radius, ErrorDist = sphere_fit(FemHead0['Points'])
-    sph_RMSE = np.mean(abs(ErrorDist))
+    FemHead0 = TriUnite(Patch_MM_FH, Patch_Top_FH)
+
+    Center, Radius, ErrorDist = sphere_fit(FemHead0['Points'])
+    sph_RMSE = np.mean(np.abs(ErrorDist))/10
 
     # print
-    print('     Fit #1: RMSE: ' + str(sph_RMSE) + ' mm')
+    print('     Fit #1: RMSE: ' + str(sph_RMSE) + ' mm');
 
     if debug_prints:
         print('----------------')
         print('First Estimation')
         print('----------------')
-        print('Centre: ' + str(Centre))
+        print('Centre: ' + str(Center))
         print('Radius: ' + str(Radius))
         print('Mean Res: ' + str(sph_RMSE))
         print('-----------------')
-    
+
+    # Write to the results dictionary
+    CSs['CenterFH']  = Center.T
+    CSs['RadiusFH']  =  Radius
+    CSs['sph_RMSEFH']  =  sph_RMSE
+
     # STEP2: dilate femoral head mesh and sphere fit again
     # IMPORTANT: TriDilateMesh "grows" the original mesh, does not create a larger one!
     FemHead_dil_coeff = 1.5
@@ -532,24 +543,24 @@ def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug
     DilateFemHeadTri = TriDilateMesh(ProxFem, FemHead0, round(FemHead_dil_coeff*Radius*CoeffMorpho))
     CenterFH, RadiusDil, ErrorDistCond = sphere_fit(DilateFemHeadTri['Points'])
 
-    sph_RMSECond = np.mean(abs(ErrorDistCond))
+    sph_RMSECond = np.mean(np.abs(ErrorDistCond))/10
 
     # print
     print('     Fit #2: RMSE: ' + str(sph_RMSECond) + ' mm');
 
     if debug_prints:
         print('----------------')
-        print('First Estimation')
+        print('Cond Estimation')
         print('----------------')
         print('Centre: ' + str(CenterFH))
         print('Radius: ' + str(RadiusDil))
         print('Mean Res: ' + str(sph_RMSECond))
         print('-----------------')
-    
+
     # check
     if ~(RadiusDil > Radius):
-        logging.exception('Dilated femoral head smaller than original mesh. Please check manually.')
-    
+        print('Dilated femoral head smaller than original mesh. Please check manually.')
+
     # Theorical Normal of the face (from real fem centre to dilate one)
     # Convert tiangulation dict to mesh object --------
     TriDilateFemHead = mesh.Mesh(np.zeros(DilateFemHeadTri['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
@@ -565,24 +576,26 @@ def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug
     # COND1: Keep points that display a less than 10deg difference between the actual
     # normals and the sphere simulated normals
     FemHead_normals_thresh = 0.975 # acosd(0.975) = 12.87 deg
-    Cond1 = [1 if (np.dot(val, TriDilateFemHead.get_unit_normals()[pos])) > \
-             FemHead_normals_thresh else 0 for pos, val in enumerate(normal_CPts_PF_2D)]
+
+    # sum((normal_CPts_PF_2D.*DilateFemHeadTri.faceNormal),2)
+    Cond1 = [1 if np.abs((np.dot(val, TriDilateFemHead.get_unit_normals()[pos]))) > \
+              FemHead_normals_thresh else 0 for pos, val in enumerate(normal_CPts_PF_2D)]
 
     # COND2: Delete points far from sphere surface outside [90%*Radius 110%*Radius]
     Cond2 = [1 if abs(np.sqrt(np.dot(val, CPts_PF_2D[pos])) - Radius) < \
-             0.1*Radius else 0 for pos, val in enumerate(CPts_PF_2D)]
+              0.1*Radius else 0 for pos, val in enumerate(CPts_PF_2D)]
 
     # [LM] I have found both conditions do not work always, when combined
     # check if using both conditions produces results
     single_cond = 0
     min_number_of_points = 20
 
-    if np.sum(np.array(Cond1 + Cond2)) > min_number_of_points:
+    if np.sum(np.logical_and(Cond1, Cond2)) > min_number_of_points:
         applied_Cond = list(np.logical_and(Cond1, Cond2))
     else:
         # flag that only one condition is used
         single_cond = 1
-        cond1_count = np.sum(np.array(Cond1))
+        # cond1_count = np.sum(np.array(Cond1))
         applied_Cond = Cond1
 
     # search within conditions Cond1 and Cond2
@@ -592,15 +605,118 @@ def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug
     FemHead = TriReduceMesh(DilateFemHeadTri, Face_ID_PF_2D_onSphere)
 
     # if just one condition is active JB suggests to keep largest patch
-    # if single_cond:
-        # FemHead = TriKeepLargestPatch(FemHead)
-    
-    
-    
-    
-    
-    
+    if single_cond:
+        FemHead = TriKeepLargestPatch(FemHead)
+
+    FemHead = TriOpenMesh(ProxFem, FemHead, 3*CoeffMorpho)
+
+    # Fit the last Sphere
+    CenterFH_Renault, Radius_Renault, ErrorDistFinal = sphere_fit(FemHead['Points'])
+
+    sph_RMSEFinal = np.mean(np.abs(ErrorDistFinal))/10
+
+    # print
+    print('     Fit #3: RMSE: ' + str(sph_RMSEFinal) + ' mm')
+
+    # feedback on fitting
+    # chosen as large error based on error in regression equations (LM)
+    fit_thereshold = 25;
+    if sph_RMSE > fit_thereshold:
+        logging.warning('Large sphere fit RMSE: ' + str(sph_RMSE) + ' (> ' + str(fit_thereshold) + 'mm).')
+    else:
+        print('Reasonable sphere fit error (RMSE < ' + str(fit_thereshold) + 'mm).')
+
+    if debug_prints:
+        print('----------------')
+        print('Final Estimation')
+        print('----------------')
+        print('Centre: ' + str(CenterFH_Renault))
+        print('Radius: ' + str(Radius_Renault))
+        print('Mean Res: ' + str(sph_RMSEFinal))
+        print('-----------------')
+
+    # Write to the results dictionary
+    CSs['CenterFH_Renault']  = CenterFH_Renault.T
+    CSs['RadiusFH_Renault']  =  Radius_Renault
+    CSs['sph_RMSEFH_Renault']  =  sph_RMSEFinal
+
+    if debug_plots:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection = '3d')
+        
+        ax.plot_trisurf(ProxFem['Points'][:,0], ProxFem['Points'][:,1], ProxFem['Points'][:,2], \
+                        triangles = ProxFem['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+        ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], \
+                        triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
+        # Plot sphere
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = CSs['RadiusFH_Renault']*np.sin(phi)*np.cos(theta)
+        y = CSs['RadiusFH_Renault']*np.sin(phi)*np.sin(theta)
+        z = CSs['RadiusFH_Renault']*np.cos(phi)
+
+        ax.plot_surface(x + CSs['CenterFH_Renault'][0], y + CSs['CenterFH_Renault'][1], z + CSs['CenterFH_Renault'][2], \
+                        color = 'blue', alpha=0.4)
+        
+        ax.set_box_aspect([1,1,1])
+        plt.show()
+
     return CSs, FemHead
+
+# -----------------------------------------------------------------------------
+def Kai2014_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug_plots = 0, debug_prints = 0):
+    # -------------------------------------------------------------------------
+    # Custom implementation of the method for defining a reference system of 
+    # the femur described in the following publication: 
+    # Kai, Shin, et al. Journal of biomechanics 47.5 (2014): 1229-1233.
+    # https://doi.org/10.1016/j.jbiomech.2013.12.013.
+    # 
+    # The algorithm slices the tibia along the vertical axis identified via
+    # principal component analysis, identifies the largest section and fits an
+    # ellips to it. It finally uses the ellipse axes to define the reference
+    # system. This implementation includes several non-obvious checks to ensure 
+    # that the bone geometry is always sliced in the correct direction.
+    # 
+    # Inputs:
+    # ProxFem - Dictionary triangulation object of the proximal femoral geometry.
+    # CS - Dictionary containing preliminary information about the bone
+    # morphology. This function requires the following fields:
+    # * CS.Z0: an estimation of the proximal-distal direction.
+    # * CS.CentreVol: estimation of the centre of the volume (for plotting).
+    # 
+    # debug_plots - enable plots used in debugging. Value: 1 or 0 (default).
+    # 
+    # debug_prints - enable prints for debugging. Value: 1 or 0 (default).
+    # 
+    # Outputs:
+    # CS - updated dictionary with the following fields:
+    # * CS.Z0: axis pointing cranially.
+    # * CS.Y0: axis pointing medially
+    # * CS.X0: axis perpendicular to the previous two.
+    # * CS.CentreVol: coords of the "centre of mass" of the triangulation
+    # * CS.CenterFH_Kai: coords of the centre of the sphere fitted 
+    # to the centre of the femoral head.
+    # * CS.RadiusFH_Kai: radius of the sphere fitted to the centre of the
+    # femoral head.
+    # MostProxPoint - coordinates of the most proximal point of the femur,
+    # located on the femoral head.
+    # -------------------------------------------------------------------------
+    
+    MostProxPoint = []
+    
+    
+    
+    
+    
+    
+    
+    
+    return CSs, MostProxPoint   
+
+    
+
+
+
 #%% ---------------------------------------------------------------------------
 # 
 # -----------------------------------------------------------------------------
@@ -849,13 +965,13 @@ def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_pl
     AuxCSInfo['Z0'] = Z0
     
     # Find Femoral Head Center
-    # try:
-    #     # sometimes Renault2018 fails for sparse meshes 
-    #     # FemHeadAS is the articular surface of the hip
-    #     # AuxCSInfo, FemHeadTri = GIBOC_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, CoeffMorpho, debug_plots)
-    # except:
-    #     # use Kai if GIBOC approach fails
-    #     logging.exception('Renault2018 fitting has failed. Using Kai femoral head fitting. \n')
+    try:
+        # sometimes Renault2018 fails for sparse meshes 
+        # FemHeadAS is the articular surface of the hip
+        AuxCSInfo, FemHeadTri = GIBOC_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, CoeffMorpho, debug_plots)
+    except:
+        # use Kai if GIBOC approach fails
+        logging.warning('Renault2018 fitting has failed. Using Kai femoral head fitting. \n')
     #     # AuxCSInfo, _ = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, debug_plots)
     
     return 0

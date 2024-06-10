@@ -480,62 +480,105 @@ def TriUnite(Tr1 = {}, Tr2 = {}):
     return Trout
 
 # -----------------------------------------------------------------------------
-def TriKeepLargestPatch(Trin = {}):
+def TriKeepLargestPatch(Tr = {}):
     # -------------------------------------------------------------------------
     # Keep the largest (by area) connected patch of a triangulation dict
     # 
     # Inputs:
     # TR: A triangulation dict with n Elements
+    # 
+    # author: Emiliano P. Ravera (emiliano.ravera@uner.edu.ar)
     # -------------------------------------------------------------------------
     TRout = {}
     
-    # Trin2 = TriErodeMesh(TRin,1)
-    
-    # Segments = freeBoundary(Trin2)
-    
-    NodesIDKept = []
-    # if NodesKept  !=  []:
-    #     if np.sum(np.mod(NodesKept, 1)) == 0: # NodesID given
-    #         NodesIDKept = NodesKept
-    #     else: # Nodes Coordinates given
-    #         NodesIDKept = [np.where(TR['Points'] == coord)[0][0] for coord in NodesKept]
+    Border = freeBoundary(Tr)
         
-    #     NodesIDKept = np.sort(NodesIDKept)
-    #     PointsKept = TR['Points'][NodesIDKept]
+    border = list(set(list(Border['ID'])))
+
+    Patch = {}
+    patch = []
+    i = 1
+    j = 0
+
+    if len(border) == 3:
         
-    # if ElmtsKept  !=  []:
-    #     if np.sum(np.mod(ElmtsKept, 1)) == 0: # ElmtsID given
-    #         tmp_NodesIDKept = TR['ConnectivityList'][ElmtsKept]
-    #         NodesIDKept = np.unique(tmp_NodesIDKept.ravel())
+        Patch[str(i)] = border
+        
+    else:
+        p = border[0]
+        border.remove(p)
+        patch += [p]
+        
+        while border:
+                
+            t = np.where(Tr['ConnectivityList'] == p)[0]
+                
+            new_vertexs = list(set(list(Tr['ConnectivityList'][t].reshape(-1))))
+            new_vertexs.remove(p)
+            new_vertexs = np.array(new_vertexs)
             
-    #         ElmtsIDKept = ElmtsKept
-    #     else: # Elements connectivity given
-    #         tmp_ElmtsIDKept = [np.where(TR['ConnectivityList'] == tri)[0][0] for tri in ElmtsKept]
-    #         ElmtsIDKept = np.unique(np.array(tmp_ElmtsIDKept))
-        
-    #     ElmtsKept = TR['ConnectivityList'][ElmtsIDKept]
-    #     tmp_ElmtsKept = np.zeros(np.shape(ElmtsKept))
-    #     for pos, val in enumerate(NodesIDKept):
-    #         ind = np.where(ElmtsKept == val)
-    #         tmp_ElmtsKept[ind] = pos
-        
-    #     PointsKept = TR['Points'][NodesIDKept]
-    #     ElmtsKept = tmp_ElmtsKept
-    # else:
-    #     tmp_ElmtsKept = []
-    #     for tri in TR['ConnectivityList']:
-    #         if set(tri).issubset(NodesIDKept):
-    #             tmp_ElmtsKept.append(tri)
-        
-    #     ElmtsKept = np.array(tmp_ElmtsKept)
-    #     tmp_ElmtsKept = np.zeros(np.shape(ElmtsKept))
-    #     for pos, val in enumerate(NodesIDKept):
-    #         ind = np.where(ElmtsKept == val)
-    #         tmp_ElmtsKept[ind] = pos
-        
-    # TRout['Points'] = PointsKept
-    # TRout['ConnectivityList'] = ElmtsKept.astype(int)
+            ind_nv = np.array([True if (val in border and val not in patch) else False for val in new_vertexs])
             
+            if any(ind_nv):
+                new_vert_in_bord = list(new_vertexs[ind_nv])
+                patch += new_vert_in_bord
+                
+                # remove vertexs from border list
+                border = [v for v in border if v not in patch]
+                
+            elif j < len(patch):
+                p = patch[j]
+                j += 1
+                        
+            elif j == len(patch):
+                Patch[str(i)] = patch
+                patch = []
+                p = border[0]
+                patch += [p]
+                j = 0
+                i += 1
+            
+    Area_patch = {}
+    for key in Patch:
+        Area_patch[key] = 0
+        indexes = []
+        # identify the traingles in each patch
+        for p in Patch[key]:
+            indexes += list(np.where(Tr['ConnectivityList'] == p)[0])
+        indexes = list(set(indexes))
+        
+        # compute the area for each patch
+        for tri in Tr['ConnectivityList'][indexes]:
+            v1 = Tr['Points'][tri[1]] - Tr['Points'][tri[0]]
+            v2 = Tr['Points'][tri[2]] - Tr['Points'][tri[0]]
+            
+            Area_patch[key] += 0.5*(np.linalg.norm(np.cross(v1, v2)))
+
+    # patch with greater area
+    PwGA = [k for k, v in Area_patch.items() if v == max(Area_patch.values())][0]
+
+    indexes = []
+    # identify the traingles in each patch
+    for p in Patch[PwGA]:
+        indexes += list(np.where(Tr['ConnectivityList'] == p)[0])
+    indexes = list(set(indexes))
+        
+    # Buid triangulation output
+    ind_points = list(set(list(Tr['ConnectivityList'][indexes].reshape([-1,1])[:,0])))
+    TRout['Points'] = Tr['Points'][ind_points]
+
+    TRout['ConnectivityList'] = np.zeros(np.shape(Tr['ConnectivityList'][indexes]))
+
+    for pos, tri in  enumerate(Tr['ConnectivityList'][indexes]):
+        
+        ind0 = np.where(np.linalg.norm(TRout['Points']-Tr['Points'][tri[0]], axis=1) == 0)[0][0]
+        ind1 = np.where(np.linalg.norm(TRout['Points']-Tr['Points'][tri[1]], axis=1) == 0)[0][0]
+        ind2 = np.where(np.linalg.norm(TRout['Points']-Tr['Points'][tri[2]], axis=1) == 0)[0][0]
+        
+        TRout['ConnectivityList'][pos] = np.array([ind0, ind1, ind2])
+        
+    TRout['ConnectivityList'] = TRout['ConnectivityList'].astype(np.int64)
+    
     return TRout
 
 # -----------------------------------------------------------------------------
@@ -556,8 +599,6 @@ def TriErodeMesh(Trin = {}, nbElmts = 0):
 
     # remove duplicated elements
     ElmtsBorder = list(set(ElmtsBorder))
-
-    # ElmtsBorder = FemHead['ConnectivityList'][Border].reshape(-1, 1)
     ElmtsInitial = ElmtsBorder
 
     if nbElmts > 1:
@@ -572,13 +613,27 @@ def TriErodeMesh(Trin = {}, nbElmts = 0):
             ElmtNeighbours = list(set(ElmtNeighbours))
             ElmtsInitial += ElmtNeighbours
 
-    tmp_kept = list(range(len(Trin['ConnectivityList'])))
-    ElemtsKept = list(set(tmp_kept) - set(ElmtsInitial))
+        tmp_kept = list(range(len(Trin['ConnectivityList'])))
+        ElemtsKept = list(set(tmp_kept) - set(ElmtsInitial))
+    else:
+        ElemtsKept = ElmtsInitial
+    
     # The output is a subset of TRsup with ElmtsKept
     TRout = TriReduceMesh(Trin, ElemtsKept)
 
     return TRout
 
+# -----------------------------------------------------------------------------
+def TriOpenMesh(TRsup = {}, TRin = {}, nbElmts=0):
+    # -------------------------------------------------------------------------
+    # 
+    # 
+    # -------------------------------------------------------------------------
+    TR = TriErodeMesh(TRin, nbElmts)
+    TRout = TriDilateMesh(TRsup, TR, nbElmts)
+   
+    return TRout
+    
 # -----------------------------------------------------------------------------
 # GeometricFun
 # -----------------------------------------------------------------------------

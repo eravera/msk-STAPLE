@@ -19,11 +19,11 @@ import matplotlib.pyplot as plt
 
 from Public_functions import load_mesh, freeBoundary
 
-from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS
+from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_femur_fitSphere2FemHead
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
-    TriErodeMesh
+    TriErodeMesh, TriKeepLargestPatch, TriOpenMesh
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -562,200 +562,110 @@ AuxCSInfo['Z0'] = Z0
 CSs = AuxCSInfo
 FemHead = {}
 
-# CSs['Z0'] = femur_guess_CS(Femur, 0)
+# AuxCSInfo, FemHeadTri = GIBOC_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, CoeffMorpho, debug_plots = 1, debug_prints = 1)
+
+
+# Kai2014_femur_fitSphere2FemHead :::::::::::::::::::::::::::::::::::::::::::
+
+# AuxCSInfo, FemHeadTri = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, CoeffMorpho, debug_plots = 0, debug_prints = 1)
+debug_plots = 1
+debug_prints = 1
+
+ProxFem = ProxFemTri.copy()
+CS = AuxCSInfo
 
 # Convert tiangulation dict to mesh object --------
-tmp_ProxFem = mesh.Mesh(np.zeros(ProxFemTri['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
-for i, f in enumerate(ProxFemTri['ConnectivityList']):
+tmp_ProxFem = mesh.Mesh(np.zeros(ProxFem['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+for i, f in enumerate(ProxFem['ConnectivityList']):
     for j in range(3):
-        tmp_ProxFem.vectors[i][j] = ProxFemTri['Points'][f[j],:]
+        tmp_ProxFem.vectors[i][j] = ProxFem['Points'][f[j],:]
 # update normals
 tmp_ProxFem.update_normals()
 # ------------------------------------------------
+
+# parameters used to identify artefact sections.
+sect_pts_limit = 15
+
+# plane normal must be negative (GIBOC)
+corr_dir = -1
 print('Computing centre of femoral head:')
 
-# Find the most proximal on femur top head
-I_Top_FH = []
-I_Top_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Z0'])))
+# Find the most proximal point
+I_Top_FH = np.argmax(np.dot(ProxFem['Points'], CSs['Z0']))
+MostProxPoint = ProxFem['Points'][I_Top_FH]
+MostProxPoint = np.reshape(MostProxPoint,(MostProxPoint.size, 1)) # convert 1d (3,) to 2d (3,1) vector
 
-# most prox point (neighbors of I_Top_FH)
-for nei in ProxFemTri['ConnectivityList'][I_Top_FH].reshape(-1, 1):
-    # print(np.where(ProxFemTri['ConnectivityList'] == nei))
-    I_Top_FH += list(list(np.where(ProxFemTri['ConnectivityList'] == nei))[0])
+# completing the inertia-based reference system the most proximal point on the
+# fem head is medial wrt to the inertial axes.
+medial_to_z = MostProxPoint - CS['CenterVol']
+tmp_Y0 = np.cross(np.cross(CS['Z0'].T, medial_to_z.T), CS['Z0'].T)
+CS['Y0'] = preprocessing.normalize(tmp_Y0.T, axis=0)
+CS['X0'] = np.cross(CS['Y0'].T, CS['Z0'].T).T
+CS['Origin']  = CS['CenterVol']
 
-# remove duplicated vertex
-I_Top_FH = list(set(I_Top_FH))
-# triang around it
-Face_Top_FH = TriReduceMesh(ProxFemTri, I_Top_FH)
-
-# create a triang with them
-# CoeffMorpho = 0.1201
-Patch_Top_FH = TriDilateMesh(ProxFemTri,Face_Top_FH,40*CoeffMorpho)
-
-# Get an initial ML Axis Y0 (pointing medio-laterally)
-# NB: from centerVol, OT points upwards to ~HJC, that is more medial than
-# Z0, hence cross(CSs.Z0,OT) points anteriorly and Y0 medially
-OT = np.mean(Patch_Top_FH['Points'], axis=0) - CSs['CenterVol'].T
-tmp_Y0 = np.cross(np.cross(CSs['Z0'].T, OT), CSs['Z0'].T)
-# tmp_Y0 = OT - np.mean(Patch_Top_FH['Points'], axis=0)
-CSs['Y0'] = preprocessing.normalize(tmp_Y0.T, axis=0)
-
-# Find a the most medial (MM) point on the femoral head (FH)
-I_MM_FH = []
-I_MM_FH.append(np.argmax(np.dot(tmp_ProxFem.centroids, CSs['Y0'])))
-
-# most prox point (neighbors of I_MM_FH)
-for nei in ProxFemTri['ConnectivityList'][I_MM_FH].reshape(-1, 1):
-    I_MM_FH += list(list(np.where(ProxFemTri['ConnectivityList'] == nei))[0])
-
-# remove duplicated vertex
-I_MM_FH = list(set(I_MM_FH))
-# triang around it
-Face_MM_FH = TriReduceMesh(ProxFemTri, I_MM_FH)
-
-# create a triang with them
-Patch_MM_FH = TriDilateMesh(ProxFemTri, Face_MM_FH, 40*CoeffMorpho)
-
-# STEP1: first sphere fit
-FemHead0 = TriUnite(Patch_MM_FH, Patch_Top_FH)
-
-Center, Radius, ErrorDist = sphere_fit(FemHead0['Points'])
-sph_RMSE = np.mean(np.abs(ErrorDist))/10#/len(ErrorDist)
+# Slice the femoral head starting from the top
+Ok_FH_Pts = []
+Ok_FH_Pts_med = []
+# d = MostProxPoint*CS['Z0'] - 0.25
+d = np.dot(MostProxPoint.T, CS['Z0']) - 0.25
+keep_slicing = 1
+count = 1
+max_area_so_far = 0
 
 # print
-print('     Fit #1: RMSE: ' + str(sph_RMSE) + ' mm');
+print('  Slicing proximal femur...')
 
-if debug_prints:
-    print('----------------')
-    print('First Estimation')
-    print('----------------')
-    print('Centre: ' + str(Center))
-    print('Radius: ' + str(Radius))
-    print('Mean Res: ' + str(sph_RMSE))
-    print('-----------------')
+# while keep_slicing:
+#     # slice the proximal femur
+#     Curves , _, _ = TriPlanIntersect(ProxFem, corr_dir*CS['Z0'], d)
 
-# STEP2: dilate femoral head mesh and sphere fit again
-# IMPORTANT: TriDilateMesh "grows" the original mesh, does not create a larger one!
-FemHead_dil_coeff = 1.5
 
-DilateFemHeadTri = TriDilateMesh(ProxFemTri, FemHead0, round(FemHead_dil_coeff*Radius*CoeffMorpho))
-CenterFH, RadiusDil, ErrorDistCond = sphere_fit(DilateFemHeadTri['Points'])
 
-sph_RMSECond = np.mean(np.abs(ErrorDistCond))/10#/len(ErrorDistCond)
+# TriPlanIntersect %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_plots = 0)
 
-# print
-print('     Fit #2: RMSE: ' + str(sph_RMSECond) + ' mm');
+Tr = ProxFem
+n = corr_dir*CS['Z0']
 
-if debug_prints:
-    print('----------------')
-    print('Cond Estimation')
-    print('----------------')
-    print('Centre: ' + str(CenterFH))
-    print('Radius: ' + str(RadiusDil))
-    print('Mean Res: ' + str(sph_RMSECond))
-    print('-----------------')
+if np.linalg.norm(n) == 0 and np.linalg.norm(d) == 0:
+    # loggin.error('Not engough input argument for TriPlanIntersect')
+    print('Not engough input argument for TriPlanIntersect')
 
-# check
-if ~(RadiusDil > Radius):
-    print('Dilated femoral head smaller than original mesh. Please check manually.')
+Pts = Tr['Points']
+n = preprocessing.normalize(n, axis=0)
 
-# Theorical Normal of the face (from real fem centre to dilate one)
-# Convert tiangulation dict to mesh object --------
-TriDilateFemHead = mesh.Mesh(np.zeros(DilateFemHeadTri['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
-for i, f in enumerate(DilateFemHeadTri['ConnectivityList']):
-    for j in range(3):
-        TriDilateFemHead.vectors[i][j] = DilateFemHeadTri['Points'][f[j],:]
-# update normals
-TriDilateFemHead.update_normals()
-# ------------------------------------------------
-CPts_PF_2D = TriDilateFemHead.centroids - CenterFH
-normal_CPts_PF_2D = preprocessing.normalize(CPts_PF_2D, axis=1)
-
-# COND1: Keep points that display a less than 10deg difference between the actual
-# normals and the sphere simulated normals
-FemHead_normals_thresh = 0.975 # acosd(0.975) = 12.87 deg
-
-# sum((normal_CPts_PF_2D.*DilateFemHeadTri.faceNormal),2)
-Cond1 = [1 if np.abs((np.dot(val, TriDilateFemHead.get_unit_normals()[pos]))) > \
-          FemHead_normals_thresh else 0 for pos, val in enumerate(normal_CPts_PF_2D)]
-
-# COND2: Delete points far from sphere surface outside [90%*Radius 110%*Radius]
-Cond2 = [1 if abs(np.sqrt(np.dot(val, CPts_PF_2D[pos])) - Radius) < \
-          0.1*Radius else 0 for pos, val in enumerate(CPts_PF_2D)]
-
-# [LM] I have found both conditions do not work always, when combined
-# check if using both conditions produces results
-single_cond = 0
-min_number_of_points = 20
-
-if np.sum(np.logical_and(Cond1, Cond2)) > min_number_of_points:
-    applied_Cond = list(np.logical_and(Cond1, Cond2))
+# If d is a point on the plane and not the d parameter of the plane equation
+if len(d) > 2:
+    Op = d
+    row, col = d.shape
+    if col == 1:
+        d = np.dot(-d,n)
+    elif row == 1:
+        d = np.dot(-d.T,n)
+    else:
+        # loggin.error('Third input must be an altitude or a point on plane')
+        print('Third input must be an altitude or a point on plane')
 else:
-    # flag that only one condition is used
-    single_cond = 1
-    cond1_count = np.sum(np.array(Cond1))
-    applied_Cond = Cond1
+    # Get a point on the plane
+    n_principal_dir = np.argmax(abs(n))
+    Pts1 = Pts[0]
+    Pts1 = np.reshape(Pts1,(Pts1.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    Op = Pts1
+    Pts1[n_principal_dir] = 0
+    Op[n_principal_dir] = (np.dot(-Pts1.T, n) - d)/n[n_principal_dir]
 
-# search within conditions Cond1 and Cond2
-Face_ID_PF_2D_onSphere = np.where(applied_Cond)[0]
+## Find the intersected elements (triagles)
+# Get Points (vertices) list as being over or under the plan
 
-# get the mesh and points on the femoral head 
-FemHead = TriReduceMesh(DilateFemHeadTri, Face_ID_PF_2D_onSphere)
+Pts_Over = [1 if np.dot(p.T, n) + d > 0 else 0 for p in Pts]
+Pts_Under = [1 if np.dot(p.T, n) + d < 0 else 0 for p in Pts]
+Pts_OverUnder = np.array(Pts_Over) - np.array(Pts_Under)
 
-# if just one condition is active JB suggests to keep largest patch
-# if single_cond:
-    # FemHead = TriKeepLargestPatch(FemHead)
+if np.sum(Pts_OverUnder == 0) > 0:
+    # loggin.warning('Points were found lying exactly on the intersecting plan, this case might not be correctly handled')
+    print('Points were found lying exactly on the intersecting plan, this case might not be correctly handled')
 
-Tr = FemHead.copy()
-# Trin2 = TriErodeMesh(FemHead,1)
-# Tr = Trin2.copy()
-Border = freeBoundary(Tr)
-    
-border = list(set(list(Border['ID'])))
-
-Patch = {}
-patch = []
-i = 1
-j = 0
-
-if len(border) == 3:
-    
-    Patch[str(i)] = border
-    
-else:
-    p = border[0]
-    border.remove(p)
-    patch += [p]
-    
-    while border:
-            
-        t = np.where(Tr['ConnectivityList'] == p)[0]
-            
-        new_vertexs = list(set(list(Tr['ConnectivityList'][t].reshape(-1))))
-        new_vertexs.remove(p)
-        new_vertexs = np.array(new_vertexs)
-        
-        ind_nv = np.array([True if (val in border and val not in patch) else False for val in new_vertexs])
-        
-        if any(ind_nv):
-            new_vert_in_bord = list(new_vertexs[ind_nv])
-            patch += new_vert_in_bord
-            
-            # remove vertexs from border list
-            border = [v for v in border if v not in patch]
-            
-        elif j < len(patch):
-            p = patch[j]
-            j += 1
-                    
-        elif j == len(patch):
-            Patch[str(i)] = patch
-            patch = []
-            p = border[0]
-            patch += [p]
-            j = 0
-            i += 1
-        
+# Get the facets,elements/triangles/ intersecting the plan
 
 
 
@@ -765,22 +675,33 @@ else:
 
 
 
-fig = plt.figure()
-ax = fig.add_subplot(projection = '3d')
-# ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
-ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
-# ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 
-# ax.plot_trisurf(Patch_Top_FH['Points'][:,0], Patch_Top_FH['Points'][:,1], Patch_Top_FH['Points'][:,2], triangles = Patch_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
-# ax.plot_trisurf(Face_Top_FH['Points'][:,0], Face_Top_FH['Points'][:,1], Face_Top_FH['Points'][:,2], triangles = Face_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
 
-# ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM_FH['Points'][:,2], triangles = Patch_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'blue')
-# ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
 
-# ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
 
-ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'blue')
-# ax.plot_trisurf(TRout1['Points'][:,0], TRout1['Points'][:,1], TRout1['Points'][:,2], triangles = TRout1['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.4, shade=False, color = 'blue')
+
+
+
+
+
+#%% PLOTS ....................
+
+# fig = plt.figure()
+# ax = fig.add_subplot(projection = '3d')
+# # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+# # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+
+# # ax.plot_trisurf(Patch_Top_FH['Points'][:,0], Patch_Top_FH['Points'][:,1], Patch_Top_FH['Points'][:,2], triangles = Patch_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
+# # ax.plot_trisurf(Face_Top_FH['Points'][:,0], Face_Top_FH['Points'][:,1], Face_Top_FH['Points'][:,2], triangles = Face_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
+
+# # ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM_FH['Points'][:,2], triangles = Patch_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'blue')
+# # ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
+
+# # ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
+
+# ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
+# # ax.plot_trisurf(TRout['Points'][:,0], TRout['Points'][:,1], TRout['Points'][:,2], triangles = TRout['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
 
 # # Plot sphere
 # # Create a sphere
@@ -789,29 +710,41 @@ ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'
 # y = 5*np.sin(phi)*np.sin(theta)
 # z = 5*np.cos(phi)
 
-# ax.plot_surface(x + Center[0,0], y + Center[0,1], z + Center[0,2], color = 'red')
+# ax.plot_surface(x + CSs['CenterFH'][0], y + CSs['CenterFH'][1], z + CSs['CenterFH'][2], color = 'red')
 # ax.plot_surface(x + CenterFH[0,0], y + CenterFH[0,1], z + CenterFH[0,2], color = 'black')
-# for p in Segments['Coord']:
-#     ax.scatter(p[0], p[1], p[2], color = "green")
+# ax.plot_surface(x + CSs['CenterFH_Renault'][0], y + CSs['CenterFH_Renault'][1], z + CSs['CenterFH_Renault'][2], color = 'green')
 
-for p1 in Patch['1']:
-    p = Tr['Points'][p1]
-    ax.scatter(p[0], p[1], p[2], color = "red")
-for p1 in Patch['2']:
-    p = Tr['Points'][p1]
-    ax.scatter(p[0], p[1], p[2], color = "orange")
-for p1 in Patch['3']:
-    p = Tr['Points'][p1]
-    ax.scatter(p[0], p[1], p[2], color = "green")
-for p1 in Patch['4']:
-    p = Tr['Points'][p1]
-    ax.scatter(p[0], p[1], p[2], color = "cyan")
-for p1 in Patch['5']:
-    p = Tr['Points'][p1]
-    ax.scatter(p[0], p[1], p[2], color = "magenta")
+
+# # Plot sphere
+# # Create a sphere
+# phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+# x = CSs['RadiusFH_Renault']*np.sin(phi)*np.cos(theta)
+# y = CSs['RadiusFH_Renault']*np.sin(phi)*np.sin(theta)
+# z = CSs['RadiusFH_Renault']*np.cos(phi)
+
+# ax.plot_surface(x + CSs['CenterFH_Renault'][0], y + CSs['CenterFH_Renault'][1], z + CSs['CenterFH_Renault'][2], color = 'blue', alpha=0.4)
+
+# # for p in Segments['Coord']:
+# #     ax.scatter(p[0], p[1], p[2], color = "green")
+
+# # for p1 in Patch['1']:
+# #     p = Tr['Points'][p1]
+# #     ax.scatter(p[0], p[1], p[2], color = "red")
+# # for p1 in Patch['2']:
+# #     p = Tr['Points'][p1]
+# #     ax.scatter(p[0], p[1], p[2], color = "orange")
+# # for p1 in Patch['3']:
+# #     p = Tr['Points'][p1]
+# #     ax.scatter(p[0], p[1], p[2], color = "green")
+# # for p1 in Patch['4']:
+# #     p = Tr['Points'][p1]
+# #     ax.scatter(p[0], p[1], p[2], color = "cyan")
+# # for p1 in Patch['5']:
+# #     p = Tr['Points'][p1]
+# #     ax.scatter(p[0], p[1], p[2], color = "magenta")
 
     
-ax.set_box_aspect([1,1,1])
-plt.show()
+# ax.set_box_aspect([1,1,1])
+# plt.show()
 
 

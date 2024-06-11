@@ -17,8 +17,42 @@ pelvisTri = pelvisTri.pelvisTri;
 femurTri = load('/home/eravera/Documentos/Investigacion/Codigos MATLAB_PYTHON/STAPLE/Python/femur_Tri.mat');
 femurTri = femurTri.femurTri;
 
-U_DistToProx = femur_guess_CS( femurTri , 0 )
-[CS, JCS, FemurBL] = GIBOC_femur(femurTri);
+%U_DistToProx = femur_guess_CS( femurTri , 0 )
+%[CS, JCS, FemurBL] = GIBOC_femur(femurTri);
 
 %figure()
 %quickPlotTriang(femurTri)
+
+
+
+debug_plots = 0;
+
+[ U_DistToProx ] = femur_guess_CS( femurTri, debug_plots);
+[ProxFemTri, DistFemTri] = cutLongBoneMesh(femurTri, U_DistToProx);
+
+% Compute the coefficient for morphology operations
+CoeffMorpho = computeTriCoeffMorpho(femurTri);
+
+% Get inertial principal vectors V_all of the femur geometry & volum center
+[ V_all, CenterVol, InertiaMatrix] = TriInertiaPpties( femurTri );
+
+%-------------------------------------
+% Initial Coordinate system (from inertial axes and femoral head):
+% * Z0: points upwards (inertial axis) 
+% * Y0: points medio-lat (from OT and Z0 in findFemoralHead.m)
+%-------------------------------------
+% coordinate system structure to store coordinate system's info
+AuxCSInfo = struct();
+AuxCSInfo.CenterVol = CenterVol;
+AuxCSInfo.V_all = V_all;
+
+% Check that the distal femur is 'below' the proximal femur or invert Z0
+Z0 = V_all(:,1);
+Z0 = sign((mean(ProxFemTri.Points)-mean(DistFemTri.Points))*Z0)*Z0;
+AuxCSInfo.Z0 = Z0;
+
+[AuxCSInfo, ~] = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, debug_plots);
+
+
+
+

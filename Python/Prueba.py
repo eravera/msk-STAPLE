@@ -15,6 +15,7 @@ from pathlib import Path
 from sklearn import preprocessing
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib import path as mpl_path
 
 
 from Public_functions import load_mesh, freeBoundary, PolyArea
@@ -830,11 +831,58 @@ for key in Curves.keys():
     # holes in the section described by curve 'key'.
     Curves[key]['Area'] = PolyArea(CloseCurveinRplanar1[0,:],CloseCurveinRplanar1[2,:])
     
+    CurvesInOut = np.zeros((len(Curves),len(Curves)))
+    
+    for key1 in Curves.keys():
+        if key1 != key:
+            Curves[key1]['Pts'] = []
+            Curves[key1]['Pts'] = PtsInter[Curves[key1]['NodesID']]
+            
+            # Replace the close curve in coordinate system where X, Y or Z is 0
+            _, V = np.linalg.eig(np.cov(Curves[key1]['Pts'].T))
+            
+            CloseCurveinRplanar2 = np.dot(V.T, Curves[key1]['Pts'].T)
+            
+            # Check if the Curves[key] is within the Curves[key1]
+            path1 = np.array(CloseCurveinRplanar1[0,:],CloseCurveinRplanar1[2,:]).T
+            path2 = np.array(CloseCurveinRplanar2[0,:],CloseCurveinRplanar2[2,:]).T
+            
+            p = mpl_path.Path(path1)
+            if any(p.contains_points(path2)):
+                
+                CurvesInOut[int(key)-1, int(key1)-1] = 1
 
+# if the Curves[key] is within an even number of curves then its area must
+# be added to the total area. If the Curves[key] is within an odd number
+# of curves then its area must be substracted from the total area
+TotArea = 0
 
+for key in Curves.keys():
+    AddOrSubstract = 1 - 2*np.remainder(np.sum(CurvesInOut[int(key)-1]), 2)
+    Curves[key]['Hole'] = -AddOrSubstract # 1 if hole -1 if filled
+    TotArea -= Curves[key]['Hole']*Curves[key]['Area']
+          
+I_X = np.where(np.abs(Elmts_IntersectScore)<3)[0]
+InterfaceTri = TriReduceMesh(Tr, I_X)
 
-
-
+if debug_plots:
+    
+    V_all, CenterVol, _, _, _ = TriInertiaPpties(Tr)
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection = '3d')
+    
+    ax.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+              V_all[0,0], V_all[1,0], V_all[2,0], \
+              color='k', length = 250)
+        
+    ax.plot_trisurf(Tr['Points'][:,0], Tr['Points'][:,1], Tr['Points'][:,2], triangles = Tr['ConnectivityList'], \
+                    edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.6, shade=False, color = 'blue')
+    ax.plot_trisurf(InterfaceTri['Points'][:,0], InterfaceTri['Points'][:,1], InterfaceTri['Points'][:,2], triangles = InterfaceTri['ConnectivityList'], \
+                    edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'red')
+        
+    # for key in Curves.keys():
+        
 
 
 

@@ -24,7 +24,7 @@ from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_fem
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
-    TriErodeMesh, TriKeepLargestPatch, TriOpenMesh
+    TriErodeMesh, TriKeepLargestPatch, TriOpenMesh, TriPlanIntersect, quickPlotRefSystem
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -481,6 +481,8 @@ for pos in range(i+2):
 
 # aca aranca el codigo:
 femurTri = load_mesh(ruta + 'Python/femur_new_simplify.stl')
+# femurTri = load_mesh(ruta + 'Python/Femur_predicted.stl')
+
 debug_prints = 1
 
 # # Z0 = femur_guess_CS(Femur, 1)
@@ -534,6 +536,7 @@ debug_prints = 1
 
 U_DistToProx = femur_guess_CS(femurTri, 0)
 ProxFemTri, DistFemTri = cutLongBoneMesh(femurTri, U_DistToProx)
+# DistFemTri, ProxFemTri = cutLongBoneMesh(femurTri, U_DistToProx)
 
 # Compute the coefficient for morphology operations
 CoeffMorpho = computeTriCoeffMorpho(femurTri)
@@ -592,7 +595,7 @@ corr_dir = -1
 print('Computing centre of femoral head:')
 
 # Find the most proximal point
-I_Top_FH = np.argmax(np.dot(ProxFem['Points'], CSs['Z0']))
+I_Top_FH = np.argmax(np.dot(ProxFem['Points'], CS['Z0']))
 MostProxPoint = ProxFem['Points'][I_Top_FH]
 MostProxPoint = np.reshape(MostProxPoint,(MostProxPoint.size, 1)) # convert 1d (3,) to 2d (3,1) vector
 
@@ -616,276 +619,134 @@ max_area_so_far = 0
 # print
 print('  Slicing proximal femur...')
 
-# while keep_slicing:
+while keep_slicing > 0:
 #     # slice the proximal femur
-#     Curves , _, _ = TriPlanIntersect(ProxFem, corr_dir*CS['Z0'], d)
-
-
-
-# TriPlanIntersect %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_plots = 0)
-
-Tr = ProxFem
-n = corr_dir*CS['Z0']
-
-if np.linalg.norm(n) == 0 and np.linalg.norm(d) == 0:
-    # loggin.error('Not engough input argument for TriPlanIntersect')
-    print('Not engough input argument for TriPlanIntersect')
-
-Pts = Tr['Points']
-n = preprocessing.normalize(n, axis=0)
-
-# If d is a point on the plane and not the d parameter of the plane equation
-if len(d) > 2:
-    Op = d
-    row, col = d.shape
-    if col == 1:
-        d = np.dot(-d,n)
-    elif row == 1:
-        d = np.dot(-d.T,n)
+    Curves , _, _ = TriPlanIntersect(ProxFem, corr_dir*CS['Z0'], d, 0)
+    Nbr_of_curves = len(Curves)
+    
+    # counting slices
+    if debug_prints:
+        print('section #' + str(count) + ': ' + str(Nbr_of_curves) + ' curves.')
+    count += 1
+    
+    # stop if there is one curve after Curves>2 have been processed
+    if Nbr_of_curves == 1 and Ok_FH_Pts_med == []:
+        Ok_FH_Pts_med += list(Curves['1']['Pts'])
+        break
     else:
-        # loggin.error('Third input must be an altitude or a point on plane')
-        print('Third input must be an altitude or a point on plane')
-else:
-    # Get a point on the plane
-    n_principal_dir = np.argmax(abs(n))
-    Pts1 = Pts[0]
-    Pts1 = np.reshape(Pts1,(Pts1.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-    Op = Pts1
-    Pts1[n_principal_dir] = 0
-    Op[n_principal_dir] = (np.dot(-Pts1.T, n) - d)/n[n_principal_dir]
-
-## Find the intersected elements (triagles)
-# Get Points (vertices) list as being over or under the plan
-
-Pts_Over = [1 if np.dot(p.T, n) + d > 0 else 0 for p in Pts]
-Pts_Under = [1 if np.dot(p.T, n) + d < 0 else 0 for p in Pts]
-Pts_OverUnder = np.array(Pts_Over) - np.array(Pts_Under)
-
-if np.sum(Pts_OverUnder == 0) > 0:
-    # loggin.warning('Points were found lying exactly on the intersecting plan, this case might not be correctly handled')
-    print('Points were found lying exactly on the intersecting plan, this case might not be correctly handled')
-
-# Get the facets,elements/triangles/ intersecting the plan
-Elmts_Intersecting = []
-Elmts = Tr['ConnectivityList']
-Elmts_IntersectScore = np.sum(Pts_OverUnder[Elmts],axis=1)
-Elmts_Intersecting =  Elmts[np.abs(Elmts_IntersectScore)<3]
-
-# Check the existence of an interaction
-if len(Elmts_Intersecting) == 0:
-    TotArea = 0
-    InterfaceTri = []
-    Curves = {}
-    Curves['1'] = {}
-    Curves['1']['NodesID'] = []
-    Curves['1']['Pts'] = []
-    Curves['1']['Area'] = 0
-    Curves['1']['Hole'] = 0
-    Curves['1']['Text'] = 'No Intersection'
-    # loggin.warning('No intersection found between the plane and the triangulation')
-    # return 0
-
-# Find the Intersecting Edges among the intersected elements
-# Get an edge list from intersecting elmts
-Nb_InterSectElmts = len(Elmts_Intersecting)
-Edges = np.zeros((3*Nb_InterSectElmts, 2))
-
-i = np.array(range(1,Nb_InterSectElmts+1))
-Edges[3*i-3] = Elmts_Intersecting[i-1,:2]
-Edges[3*i-2] = Elmts_Intersecting[i-1,1:3]
-Edges[3*i-1,0] = Elmts_Intersecting[i-1,-1]
-Edges[3*i-1,1] = Elmts_Intersecting[i-1,0]
-Edges = Edges.astype(np.int64)
-
-# Identify the edges crossing the plane
-# They will have an edge status of 0
-Edges_Status = np.sum(Pts_OverUnder[Edges],axis=1)
-
-I_Edges_Intersecting = np.where(Edges_Status == 0)[0]
-# Find the edge plane intersecting points
-# start and end points of each edges
-
-P0 = Pts[Edges[I_Edges_Intersecting,0]]
-P1 = Pts[Edges[I_Edges_Intersecting,1]]
-
-# Vector of the edge
-u = P1 - P0
-
-# Get vectors from point on plane (Op) to edge ends
-v = P0 - Op.T
-
-EdgesLength = np.dot(u,n)
-EdgesUnderPlaneLength = np.dot(-v,n)
-
-ratio = EdgesUnderPlaneLength/EdgesLength
-
-# Get Intersectiong Points Coordinates
-PtsInter = P0 + u*ratio
-
-# Make sure the shared edges have the same intersection Points
-# Build an edge correspondance table
-EdgeCorrespondence = np.zeros((3*Nb_InterSectElmts, 1))
-EdgeNbOccurences = np.zeros((3*Nb_InterSectElmts, 1))
-
-for edge1 in I_Edges_Intersecting:
-    edge2 = np.where((Edges[:,1] == Edges[edge1,0]) & (Edges[:,0] == Edges[edge1,1]))[0][0]
+        d -= 1
     
-    EdgeNbOccurences[edge1] += 1
-    EdgeNbOccurences[edge2] += 1
-    
-    if EdgeNbOccurences[edge1] == 2:
-        EdgeCorrespondence[edge1] = edge2
-    elif EdgeNbOccurences[edge1] == 1:
-        EdgeCorrespondence[edge1] = edge1
-    else:
-        # loggin.warning('Intersecting edge appear in 3 triangles, not good')
-        print('Intersecting edge appear in 3 triangles, not good')
-
-EdgeCorrespondence = EdgeCorrespondence.astype(np.int64)
-
-# Get edge intersection point
-Edge_IntersectionPtsIndex = np.zeros((3*Nb_InterSectElmts, 1))
-tmp_edgeInt = np.array(range(len(I_Edges_Intersecting)))
-tmp_edgeInt = np.reshape(tmp_edgeInt,(tmp_edgeInt.size, 1)) # convert 1d (#,) to 2d (#,1) vector
-Edge_IntersectionPtsIndex[I_Edges_Intersecting] = tmp_edgeInt
-
-# Don't use intersection point duplicate: only one intersection point per edge
-Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[EdgeCorrespondence[I_Edges_Intersecting][:,0]]
-
-# Get the segments intersecting each triangle
-# The segments are: [Intersecting Point 1 ID , Intersecting Point 2 ID]
-
-Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex>0].astype(np.int64)
-Segments = list(Segments.reshape((-1,2)))
-
-# Separate the edges to curves structure containing close curves
-j = 1
-Curves = {}
-i = 1
-while Segments:
-    # Initialise the Curves Structure, if there are multiple curves this
-    # will lead to trailing zeros that will be removed afterwards
-    Curves[str(i)] = {}
-    Curves[str(i)]['NodesID'] = []
-    Curves[str(i)]['NodesID'].append(Segments[0][0])
-    Curves[str(i)]['NodesID'].append(Segments[0][1])
-    
-    # Remove the semgents added to Curves[i] from the segments list
-    del Segments[0]
-    j += 1
-    
-    # Find the edge in segments that has a node already in the Curves[i][NodesID]
-    # This edge will be the next edge of the current curve because it's
-    # connected to the current segment
-    # Is, the index of the next edge
-    # Js, the index of the node within this edge already present in NodesID
-    Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1])
-    Is = Is[0]
-    Js = Js[0]
-    
-    # Nk is the node of the previuously found edge that is not in the
-    # current Curves[i][NodesID] list
-    # round(Js+2*(0.5-Js)) give 0 if Js = 1 and 1 if Js = 0
-    # It gives the other node not yet in NodesID of the identified next edge
-    Nk = Segments[Is][int(np.round(Js+2*(0.5-Js)))]
-    del Segments[Is]
-    j += 1
-    
-    # Loop until there is no next node
-    while Nk:
-        Curves[str(i)]['NodesID'].append(Nk)
-        if Segments:
-            Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1]) 
-            Is = Is[0]
-            Js = Js[0]
-            
-            Nk = Segments[Is][int(np.round(Js+2*(0.5-Js)))]
-            del Segments[Is]
-            j += 1
+    # with just one curve save the slice: it's the femoral head
+    if Nbr_of_curves == 1:
+        Ok_FH_Pts += Curves['1']['Pts']
+        # with more than one slice
+    elif Nbr_of_curves > 1:
+        # keep just the section with largest area.
+        # the assumption is that the femoral head at this stage is larger
+        # than the tip of the greater trocanter
+        if Nbr_of_curves == 2 and len(Curves['2']['Pts']) < sect_pts_limit:
+            print('Slice recognized as artefact. Skipping it.')
+            continue
         else:
-            break
-        
-    # If there is on next node then we move to the next curve
-    i += 1
-    
-# Compute the area of the cross section defined by the curve
-
-# Deal with cases where a cross section presents holes
-# 
-# Get a matrix of curves inclusion -> CurvesInOut :
-# If the curve(i) is within the curve(j) then CurvesInOut(i,j) = 1
-# else  CurvesInOut(i,j) = 0
-
-for key in Curves.keys():
-    Curves[key]['Pts'] = []
-    Curves[key]['Pts'] = PtsInter[Curves[key]['NodesID']]
-    
-    # Replace the close curve in coordinate system where X, Y or Z is 0
-    _, V = np.linalg.eig(np.cov(Curves[key]['Pts'].T))
-    
-    CloseCurveinRplanar1 = np.dot(V.T, Curves[key]['Pts'].T)
-    
-    # Get the area of the section defined by the curve 'key'.
-    # /!\ the curve.Area value Do not account for the area of potential 
-    # holes in the section described by curve 'key'.
-    Curves[key]['Area'] = PolyArea(CloseCurveinRplanar1[0,:],CloseCurveinRplanar1[2,:])
-    
-    CurvesInOut = np.zeros((len(Curves),len(Curves)))
-    
-    for key1 in Curves.keys():
-        if key1 != key:
-            Curves[key1]['Pts'] = []
-            Curves[key1]['Pts'] = PtsInter[Curves[key1]['NodesID']]
+            areas = [Curves[key]['Area'] for key in Curves.keys()] 
+            max_area = np.max(areas)
+            ind_max_area = np.argmax(areas)
+            Ok_FH_Pts_med += Curves[str(ind_max_area)]['Pts']
+            areas = []
             
-            # Replace the close curve in coordinate system where X, Y or Z is 0
-            _, V = np.linalg.eig(np.cov(Curves[key1]['Pts'].T))
-            
-            CloseCurveinRplanar2 = np.dot(V.T, Curves[key1]['Pts'].T)
-            
-            # Check if the Curves[key] is within the Curves[key1]
-            path1 = np.array(CloseCurveinRplanar1[0,:],CloseCurveinRplanar1[2,:]).T
-            path2 = np.array(CloseCurveinRplanar2[0,:],CloseCurveinRplanar2[2,:]).T
-            
-            p = mpl_path.Path(path1)
-            if any(p.contains_points(path2)):
+            if max_area >= max_area_so_far:
+                max_area_so_far = max_area
+            else:
+                print('Reached femoral neck. End of slicing...')
+                keep_slicing = 0
+                continue
+    # -------------------------------
+    # THIS ATTEMPT DID NOT WORK WELL
+    # -------------------------------
+    # if I assume centre of CT/MRI is always more medial than HJC
+    # then medial points can be identified as closer to mid
+    # it is however a weak solution - depends on medical images.
+    #       ind_med_point = abs(Curves(i).Pts(:,1))<abs(MostProxPoint(1))
+    # -------------------------------
+    # 
+    # -------------------------------
+    # THIS ATTEMPT DID NOT WORK WELL
+    # -------------------------------
+    # More robust (?) to check if the cross product of
+    # dot ( cross( (x_P-x_MostProx), Z0 ) , front ) > 0
+    # v_MostProx2Points = bsxfun(@minus,  Curves(i).Pts, MostProxPoint);
+    # this condition is valid for right leg, left should be <0
+    #       ind_med_point = (medial_dir'*bsxfun(@cross, v_MostProx2Points', up))>0;
+    #       Ok_FH_Pts_med = [Ok_FH_Pts_med; Curves(i).Pts(ind_med_point,:)];
+    # -------------------------------
                 
-                CurvesInOut[int(key)-1, int(key1)-1] = 1
+# print
+print('  Sliced #' + str(count) + ' times') 
+        
+# assemble the points from one and two curves
+fitPoints = Ok_FH_Pts + Ok_FH_Pts_med
+fitPoints = np.array(fitPoints)
+# NB: exclusind this check did NOT alter the results in most cases and
+# offered more point for fitting
+# -----------------
+# keep only the points medial to MostProxPoint according to the reference
+# system X0-Y0-Z0
+ind_keep = np.dot(fitPoints-MostProxPoint.T, CS['Y0']) > 0
+fitPoints = fitPoints[np.where(ind_keep)[0]]
+# -----------------
 
-# if the Curves[key] is within an even number of curves then its area must
-# be added to the total area. If the Curves[key] is within an odd number
-# of curves then its area must be substracted from the total area
-TotArea = 0
+# fit sphere
+CenterFH, Radius, ErrorDist = sphere_fit(fitPoints)
 
-for key in Curves.keys():
-    AddOrSubstract = 1 - 2*np.remainder(np.sum(CurvesInOut[int(key)-1]), 2)
-    Curves[key]['Hole'] = -AddOrSubstract # 1 if hole -1 if filled
-    TotArea -= Curves[key]['Hole']*Curves[key]['Area']
-          
-I_X = np.where(np.abs(Elmts_IntersectScore)<3)[0]
-InterfaceTri = TriReduceMesh(Tr, I_X)
+sph_RMSE = np.mean(np.abs(ErrorDist))/10
+
+if debug_prints:
+    print('----------------')
+    print('Final Estimation')
+    print('----------------')
+    print('Centre: ' + str(CenterFH))
+    print('Radius: ' + str(Radius))
+    print('Mean Res: ' + str(sph_RMSE))
+    print('-----------------')
+
+# feedback on fitting
+# chosen as large error based on error in regression equations (LM)
+fit_thereshold = 20
+if sph_RMSE > fit_thereshold:
+    # logging.warning('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
+    print('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
+else:
+    print('  Reasonable sphere fit error (RMSE<' + str(fit_thereshold) + 'mm).')
+
+# body reference system
+CS['CenterFH_Kai'] = CenterFH[0]
+CS['RadiusFH_Kai'] = Radius
 
 if debug_plots:
     
-    V_all, CenterVol, _, _, _ = TriInertiaPpties(Tr)
-    
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection = '3d')
+    ax = fig.add_subplot(projection = '3d')
     
-    ax.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
-              V_all[0,0], V_all[1,0], V_all[2,0], \
-              color='k', length = 250)
-        
-    ax.plot_trisurf(Tr['Points'][:,0], Tr['Points'][:,1], Tr['Points'][:,2], triangles = Tr['ConnectivityList'], \
-                    edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.6, shade=False, color = 'blue')
-    ax.plot_trisurf(InterfaceTri['Points'][:,0], InterfaceTri['Points'][:,1], InterfaceTri['Points'][:,2], triangles = InterfaceTri['ConnectivityList'], \
-                    edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'red')
-        
-    # for key in Curves.keys():
-        
+    ax.plot_trisurf(ProxFem['Points'][:,0], ProxFem['Points'][:,1], ProxFem['Points'][:,2], \
+                    triangles = ProxFem['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+    
+    ax.scatter(fitPoints[:,0], fitPoints[:,1], fitPoints[:,2], color = "green")
+    # Plot sphere
+    # Create a sphere
+    phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+    x = CS['RadiusFH_Kai']*np.sin(phi)*np.cos(theta)
+    y = CS['RadiusFH_Kai']*np.sin(phi)*np.sin(theta)
+    z = CS['RadiusFH_Kai']*np.cos(phi)
 
-
-
+    ax.plot_surface(x + CS['CenterFH_Kai'][0], y + CS['CenterFH_Kai'][1], z + CS['CenterFH_Kai'][2], \
+                    color = 'blue', alpha=0.4)
+    
+    plotDot(MostProxPoint, ax, 'r', 4)
+    plotDot(CS['Origin'], ax, 'k', 6)
+    tmp = {}
+    tmp['V'] = CS['V_all']
+    tmp['Origin'] = CS['CenterVol']
+    quickPlotRefSystem(tmp, ax)
 
 
 

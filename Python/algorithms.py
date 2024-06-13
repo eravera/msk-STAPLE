@@ -44,7 +44,8 @@ from GIBOC_core import TriInertiaPpties, \
                                    TriUnite, \
                                     sphere_fit, \
                                      TriKeepLargestPatch, \
-                                      TriOpenMesh
+                                      TriOpenMesh, \
+                                       TriPlanIntersect
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -664,7 +665,7 @@ def GIBOC_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug
     return CSs, FemHead
 
 # -----------------------------------------------------------------------------
-def Kai2014_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, debug_plots = 0, debug_prints = 0):
+def Kai2014_femur_fitSphere2FemHead(ProxFem = {}, CS = {}, CoeffMorpho = 1, debug_plots = 0, debug_prints = 0):
     # -------------------------------------------------------------------------
     # Custom implementation of the method for defining a reference system of 
     # the femur described in the following publication: 
@@ -701,17 +702,177 @@ def Kai2014_femur_fitSphere2FemHead(ProxFem = {}, CSs = {}, CoeffMorpho = 1, deb
     # MostProxPoint - coordinates of the most proximal point of the femur,
     # located on the femoral head.
     # -------------------------------------------------------------------------
-    
-    MostProxPoint = []
-    
-    
-    
-    
-    
-    
-    
-    
-    return CSs, MostProxPoint   
+    # Convert tiangulation dict to mesh object --------
+    tmp_ProxFem = mesh.Mesh(np.zeros(ProxFem['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(ProxFem['ConnectivityList']):
+        for j in range(3):
+            tmp_ProxFem.vectors[i][j] = ProxFem['Points'][f[j],:]
+    # update normals
+    tmp_ProxFem.update_normals()
+    # ------------------------------------------------
+
+    # parameters used to identify artefact sections.
+    sect_pts_limit = 15
+
+    # plane normal must be negative (GIBOC)
+    corr_dir = -1
+    print('Computing centre of femoral head:')
+
+    # Find the most proximal point
+    I_Top_FH = np.argmax(np.dot(ProxFem['Points'], CS['Z0']))
+    MostProxPoint = ProxFem['Points'][I_Top_FH]
+    MostProxPoint = np.reshape(MostProxPoint,(MostProxPoint.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+
+    # completing the inertia-based reference system the most proximal point on the
+    # fem head is medial wrt to the inertial axes.
+    medial_to_z = MostProxPoint - CS['CenterVol']
+    tmp_Y0 = np.cross(np.cross(CS['Z0'].T, medial_to_z.T), CS['Z0'].T)
+    CS['Y0'] = preprocessing.normalize(tmp_Y0.T, axis=0)
+    CS['X0'] = np.cross(CS['Y0'].T, CS['Z0'].T).T
+    CS['Origin']  = CS['CenterVol']
+
+    # Slice the femoral head starting from the top
+    Ok_FH_Pts = []
+    Ok_FH_Pts_med = []
+    # d = MostProxPoint*CS['Z0'] - 0.25
+    d = np.dot(MostProxPoint.T, CS['Z0']) - 0.25
+    keep_slicing = 1
+    count = 1
+    max_area_so_far = 0
+
+    # print
+    print('  Slicing proximal femur...')
+
+    while keep_slicing > 0:
+    #     # slice the proximal femur
+        Curves , _, _ = TriPlanIntersect(ProxFem, corr_dir*CS['Z0'], d)
+        Nbr_of_curves = len(Curves)
+        
+        # counting slices
+        if debug_prints:
+            print('section #' + str(count) + ': ' + str(Nbr_of_curves) + ' curves.')
+        count += 1
+        
+        # stop if there is one curve after Curves>2 have been processed
+        if Nbr_of_curves == 1 and Ok_FH_Pts_med == []:
+            Ok_FH_Pts_med += list(Curves['1']['Pts'])
+            break
+        else:
+            d -= 1
+        
+        # with just one curve save the slice: it's the femoral head
+        if Nbr_of_curves == 1:
+            Ok_FH_Pts += Curves['1']['Pts']
+            # with more than one slice
+        elif Nbr_of_curves > 1:
+            # keep just the section with largest area.
+            # the assumption is that the femoral head at this stage is larger
+            # than the tip of the greater trocanter
+            if Nbr_of_curves == 2 and len(Curves['2']['Pts']) < sect_pts_limit:
+                print('Slice recognized as artefact. Skipping it.')
+                continue
+            else:
+                areas = [Curves[key]['Area'] for key in Curves.keys()] 
+                max_area = np.max(areas)
+                ind_max_area = np.argmax(areas)
+                Ok_FH_Pts_med += Curves[str(ind_max_area)]['Pts']
+                areas = []
+                
+                if max_area >= max_area_so_far:
+                    max_area_so_far = max_area
+                else:
+                    print('Reached femoral neck. End of slicing...')
+                    keep_slicing = 0
+                    continue
+        # -------------------------------
+        # THIS ATTEMPT DID NOT WORK WELL
+        # -------------------------------
+        # if I assume centre of CT/MRI is always more medial than HJC
+        # then medial points can be identified as closer to mid
+        # it is however a weak solution - depends on medical images.
+        #       ind_med_point = abs(Curves(i).Pts(:,1))<abs(MostProxPoint(1))
+        # -------------------------------
+        # 
+        # -------------------------------
+        # THIS ATTEMPT DID NOT WORK WELL
+        # -------------------------------
+        # More robust (?) to check if the cross product of
+        # dot ( cross( (x_P-x_MostProx), Z0 ) , front ) > 0
+        # v_MostProx2Points = bsxfun(@minus,  Curves(i).Pts, MostProxPoint);
+        # this condition is valid for right leg, left should be <0
+        #       ind_med_point = (medial_dir'*bsxfun(@cross, v_MostProx2Points', up))>0;
+        #       Ok_FH_Pts_med = [Ok_FH_Pts_med; Curves(i).Pts(ind_med_point,:)];
+        # -------------------------------
+                    
+    # print
+    print('  Sliced #' + str(count) + ' times') 
+            
+    # assemble the points from one and two curves
+    fitPoints = Ok_FH_Pts + Ok_FH_Pts_med
+    fitPoints = np.array(fitPoints)
+    # NB: exclusind this check did NOT alter the results in most cases and
+    # offered more point for fitting
+    # -----------------
+    # keep only the points medial to MostProxPoint according to the reference
+    # system X0-Y0-Z0
+    ind_keep = np.dot(fitPoints-MostProxPoint.T, CS['Y0']) > 0
+    fitPoints = fitPoints[np.where(ind_keep)[0]]
+    # -----------------
+
+    # fit sphere
+    CenterFH, Radius, ErrorDist = sphere_fit(fitPoints)
+
+    sph_RMSE = np.mean(np.abs(ErrorDist))/10
+
+    if debug_prints:
+        print('----------------')
+        print('Final Estimation')
+        print('----------------')
+        print('Centre: ' + str(CenterFH))
+        print('Radius: ' + str(Radius))
+        print('Mean Res: ' + str(sph_RMSE))
+        print('-----------------')
+
+    # feedback on fitting
+    # chosen as large error based on error in regression equations (LM)
+    fit_thereshold = 20
+    if sph_RMSE > fit_thereshold:
+        # logging.warning('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
+        print('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
+    else:
+        print('  Reasonable sphere fit error (RMSE<' + str(fit_thereshold) + 'mm).')
+
+    # body reference system
+    CS['CenterFH_Kai'] = CenterFH[0]
+    CS['RadiusFH_Kai'] = Radius
+
+    if debug_plots:
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(projection = '3d')
+        
+        ax.plot_trisurf(ProxFem['Points'][:,0], ProxFem['Points'][:,1], ProxFem['Points'][:,2], \
+                        triangles = ProxFem['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+        
+        ax.scatter(fitPoints[:,0], fitPoints[:,1], fitPoints[:,2], color = "green")
+        # Plot sphere
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = CS['RadiusFH_Kai']*np.sin(phi)*np.cos(theta)
+        y = CS['RadiusFH_Kai']*np.sin(phi)*np.sin(theta)
+        z = CS['RadiusFH_Kai']*np.cos(phi)
+
+        ax.plot_surface(x + CS['CenterFH_Kai'][0], y + CS['CenterFH_Kai'][1], z + CS['CenterFH_Kai'][2], \
+                        color = 'blue', alpha=0.4)
+        
+        plotDot(MostProxPoint, ax, 'r', 4)
+        plotDot(CS['Origin'], ax, 'k', 6)
+        tmp = {}
+        tmp['V'] = CS['V_all']
+        tmp['Origin'] = CS['CenterVol']
+        quickPlotRefSystem(tmp, ax)
+
+    return CS, MostProxPoint   
 
     
 
@@ -972,7 +1133,20 @@ def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_pl
     except:
         # use Kai if GIBOC approach fails
         logging.warning('Renault2018 fitting has failed. Using Kai femoral head fitting. \n')
-    #     # AuxCSInfo, _ = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, debug_plots)
+        AuxCSInfo, _ = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, debug_plots)
+        AuxCSInfo['CenterFH_Renault'] = AuxCSInfo['CenterFH_Kai']
+        AuxCSInfo['RadiusFH_Renault'] = AuxCSInfo['RadiusFH_Kai']
+    
+    # X0 points backwards
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     return 0
     

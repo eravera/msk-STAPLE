@@ -662,8 +662,8 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
     Pts = Tr['Points']
     n = preprocessing.normalize(n, axis=0)
 
-    # If d is a point on the plane and not the d parameter of the plane equation
-    if len(d) > 2:
+    # If d is a point on the plane and not the d parameter of the plane equation        
+    if type(d) is np.ndarray and len(d) > 2:
         Op = d
         row, col = d.shape
         if col == 1:
@@ -808,6 +808,8 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
         # Is, the index of the next edge
         # Js, the index of the node within this edge already present in NodesID
         Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1])
+        if len(Is) == 0:
+            break
         Is = Is[0]
         Js = Js[0]
         
@@ -823,7 +825,10 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
         while Nk:
             Curves[str(i)]['NodesID'].append(Nk)
             if Segments:
-                Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1]) 
+                Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1])
+                if len(Is) == 0:
+                    break
+                    
                 Is = Is[0]
                 Js = Js[0]
                 
@@ -918,12 +923,31 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
             
             plt.plot(Curves['1']['Pts'][:,0], Curves['1']['Pts'][:,1], Curves['1']['Pts'][:,2], 'k-', linewidth=4)
     
-    
-    
-    
-    
     return Curves, TotArea, InterfaceTri 
     
+# -----------------------------------------------------------------------------
+def TriSliceObjAlongAxis(TriObj, Axis, step, cut_offset = 0.5, debug_plot = 0):
+    # -------------------------------------------------------------------------
+    # Slice a Dict triangulation object TriObj along a specified axis. 
+    # Notation and inputs are consistent with the other GIBOC-Knee functions 
+    # used to manipulate triangulations.
+    # -------------------------------------------------------------------------
+    min_coord = np.dot(TriObj['Points'], Axis) + cut_offset
+    max_coord = np.dot(TriObj['Points'], Axis) - cut_offset
+    
+    Curves = {}
+    Areas = []
+    
+    for it, d in enumerate(range(min_coord, max_coord, step)):
+        
+        Curves[str(it)], Areas[it], _, _ = TriPlanIntersect(TriObj, Axis, d)
+    
+    
+    return 0
+    
+
+
+
     
 
 # -----------------------------------------------------------------------------

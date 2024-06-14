@@ -837,8 +837,8 @@ def Kai2014_femur_fitSphere2FemHead(ProxFem = {}, CS = {}, CoeffMorpho = 1, debu
     # chosen as large error based on error in regression equations (LM)
     fit_thereshold = 20
     if sph_RMSE > fit_thereshold:
-        # logging.warning('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
-        print('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
+        logging.warning('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
+        # print('Large sphere fit RMSE: ' + str(sph_RMSE) + '(>' + str(fit_thereshold) + 'mm).')
     else:
         print('  Reasonable sphere fit error (RMSE<' + str(fit_thereshold) + 'mm).')
 
@@ -874,6 +874,19 @@ def Kai2014_femur_fitSphere2FemHead(ProxFem = {}, CS = {}, CoeffMorpho = 1, debu
 
     return CS, MostProxPoint   
 
+# -----------------------------------------------------------------------------
+def GIBOC_isolate_epiphysis(TriObj, Z0, prox_epi):
+    # -------------------------------------------------------------------------
+    
+    # -------------------------------------------------------------------------    
+    EpiTri = {}
+    # First 0.5 mm in Start and End are not accounted for, for stability.
+    slice_step = 1 # mm 
+    # Areas, Alt = TriSliceObjAlongAxis(TriObj, Z0, slice_step)
+    
+    
+    
+    return EpiTri
     
 
 

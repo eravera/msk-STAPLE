@@ -921,7 +921,7 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
             
         for key in Curves.keys():
             
-            plt.plot(Curves['1']['Pts'][:,0], Curves['1']['Pts'][:,1], Curves['1']['Pts'][:,2], 'k-', linewidth=4)
+            plt.plot(Curves[key]['Pts'][:,0], Curves[key]['Pts'][:,1], Curves[key]['Pts'][:,2], 'k-', linewidth=4)
     
     return Curves, TotArea, InterfaceTri 
     
@@ -932,18 +932,31 @@ def TriSliceObjAlongAxis(TriObj, Axis, step, cut_offset = 0.5, debug_plot = 0):
     # Notation and inputs are consistent with the other GIBOC-Knee functions 
     # used to manipulate triangulations.
     # -------------------------------------------------------------------------
-    min_coord = np.dot(TriObj['Points'], Axis) + cut_offset
-    max_coord = np.dot(TriObj['Points'], Axis) - cut_offset
-    
+    min_coord = np.min(np.dot(TriObj['Points'], Axis)) + cut_offset
+    max_coord = np.max(np.dot(TriObj['Points'], Axis)) - cut_offset
+    Alt = np.arange(min_coord, max_coord, step)
+
     Curves = {}
-    Areas = []
-    
-    for it, d in enumerate(range(min_coord, max_coord, step)):
+    Areas = {}
+
+    for it, d in enumerate(Alt):
         
-        Curves[str(it)], Areas[it], _, _ = TriPlanIntersect(TriObj, Axis, d)
+        Curves[str(it)], Areas[str(it)], _ = TriPlanIntersect(TriObj, Axis, d)
+        
+    if debug_plot:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        for key in Curves.keys():
+            if Curves[key]:
+                ax.plot(Curves[key]['1']['Pts'][:,0], Curves[key]['1']['Pts'][:,1], Curves[key]['1']['Pts'][:,2], 'k-', linewidth=2)
+        plt.show()
+
+    print('Sliced #' + str(len(Curves)-1) + ' times')
+    maxArea = Areas[max(Areas, key=Areas.get)]
+    maxAreaInd = int(max(Areas, key=Areas.get))
+    maxAlt = Alt[maxAreaInd]
     
-    
-    return 0
+    return Areas, Alt, maxArea, maxAreaInd, maxAlt
     
 
 

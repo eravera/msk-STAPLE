@@ -56,3 +56,26 @@ AuxCSInfo.Z0 = Z0;
 
 
 
+% -------------------
+TriObj = ProxFemTri;
+Axis = Z0;
+cut_offset = 0.5;
+step = 0.5;
+min_coord = min(TriObj.Points*Axis)+cut_offset;
+max_coord = max(TriObj.Points*Axis)-cut_offset;
+Alt = min_coord:step:max_coord;
+
+Areas=[];
+
+it = 1;
+for d = -Alt
+    [ Curves , Areas(it), ~ ] = TriPlanIntersect(TriObj, Axis, d);
+    it = it + 1;
+end
+
+
+
+
+
+
+

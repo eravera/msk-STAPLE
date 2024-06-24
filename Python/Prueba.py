@@ -578,21 +578,33 @@ AuxCSInfo['X0'] = np.cross(AuxCSInfo['Y0'].T, AuxCSInfo['Z0'].T).T
 
 # Isolates the epiphysis
 # EpiFemTri = GIBOC_isolate_epiphysis(DistFemTri, Z0, 'distal')
+debug_plot = 0
 
+cut_offset = 0.5
+step = 0.5
+min_coord = np.min(np.dot(ProxFemTri['Points'], Z0)) + cut_offset
+max_coord = np.max(np.dot(ProxFemTri['Points'], Z0)) - cut_offset
+Alt = np.arange(min_coord, max_coord, step)
 
-# cut_offset = 0.5
-# step = 0.5
-# min_coord = np.min(np.dot(ProxFemTri['Points'], Z0)) + cut_offset
-# max_coord = np.max(np.dot(ProxFemTri['Points'], Z0)) - cut_offset
+Curves = {}
+Areas = {}
 
-# Curves = {}
-# Areas = {}
-
-# for it, d in enumerate(np.arange(min_coord, max_coord, step)):
-#     # print(it, d)
+for it, d in enumerate(Alt):
     
-#     Curves[str(it)], Areas[str(it)], _ = TriPlanIntersect(ProxFemTri, Z0, d)
+    Curves[str(it)], Areas[str(it)], _ = TriPlanIntersect(ProxFemTri, Z0, d)
+    
+if debug_plot:
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    for key in Curves.keys():
+        if Curves[key]:
+            ax.plot(Curves[key]['1']['Pts'][:,0], Curves[key]['1']['Pts'][:,1], Curves[key]['1']['Pts'][:,2], 'k-', linewidth=2)
+    plt.show()
 
+print('Sliced #' + str(len(Curves)-1) + ' times')
+maxArea = Areas[max(Areas, key=Areas.get)]
+maxAreaInd = int(max(Areas, key=Areas.get))
+maxAlt = Alt[maxAreaInd]
 
 
 

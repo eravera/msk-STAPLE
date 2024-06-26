@@ -676,9 +676,9 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
     else:
         # Get a point on the plane
         n_principal_dir = np.argmax(abs(n))
-        Pts1 = Pts[0]
+        Pts1 = Pts[0].copy()
         Pts1 = np.reshape(Pts1,(Pts1.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-        Op = Pts1
+        Op = Pts1.copy()
         Pts1[n_principal_dir] = 0
         Op[n_principal_dir] = (np.dot(-Pts1.T, n) - d)/n[n_principal_dir]
 
@@ -711,7 +711,7 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
         Curves['1']['Hole'] = 0
         Curves['1']['Text'] = 'No Intersection'
         # loggin.warning('No intersection found between the plane and the triangulation')
-        # return 0
+        return Curves, TotArea, InterfaceTri
 
     # Find the Intersecting Edges among the intersected elements
     # Get an edge list from intersecting elmts
@@ -756,13 +756,23 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
     EdgeNbOccurences = np.zeros((3*Nb_InterSectElmts, 1))
 
     for edge1 in I_Edges_Intersecting:
-        edge2 = np.where((Edges[:,1] == Edges[edge1,0]) & (Edges[:,0] == Edges[edge1,1]))[0][0]
+        
+        tmp = np.where((Edges[:,1] == Edges[edge1,0]) & (Edges[:,0] == Edges[edge1,1]))
+        if tmp[0].size == 0:
+            # print(edge1)
+            # print(Edges[edge1,0])
+            # print(Edges[edge1,1])
+            continue
+        else:
+            # print(tmp, tmp[0][0])
+            edge2 = tmp[0]
+        # edge2 = np.where((Edges[:,1] == Edges[edge1,0]) & (Edges[:,0] == Edges[edge1,1]))[0][0]
         
         EdgeNbOccurences[edge1] += 1
         EdgeNbOccurences[edge2] += 1
         
         if EdgeNbOccurences[edge1] == 2:
-            EdgeCorrespondence[edge1] = edge2
+            EdgeCorrespondence[edge1] = edge2[0]
         elif EdgeNbOccurences[edge1] == 1:
             EdgeCorrespondence[edge1] = edge1
         else:
@@ -784,7 +794,8 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
     # The segments are: [Intersecting Point 1 ID , Intersecting Point 2 ID]
 
     Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex>0].astype(np.int64)
-    Segments = list(Segments.reshape((-1,2)))
+    # Segments = list(Segments.reshape((-1,2)))
+    Segments = list(np.array(list(set(Segments))).reshape((-1,2)))
 
     # Separate the edges to curves structure containing close curves
     j = 1
@@ -807,11 +818,18 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
         # connected to the current segment
         # Is, the index of the next edge
         # Js, the index of the node within this edge already present in NodesID
-        Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1])
-        if len(Is) == 0:
+        
+        tmp1 = np.where(Segments == Curves[str(i)]['NodesID'][-1])
+        if tmp1[0].size == 0:
             break
-        Is = Is[0]
-        Js = Js[0]
+        else:
+            Is = tmp1[0][0]
+            Js = tmp1[1][0]
+        # Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1])
+        # if len(Is) == 0:
+        #     break
+        # Is = Is[0]
+        # Js = Js[0]
         
         # Nk is the node of the previuously found edge that is not in the
         # current Curves[i][NodesID] list

@@ -609,7 +609,7 @@ Alt = np.arange(min_coord, max_coord, step)
 # Check la función TRIPLANINTERSECT
 #------------
 n= Z0.copy()
-d = -Alt[-60].copy()
+d = -Alt[-95].copy()
 Tr = ProxFemTri.copy()
 
 if np.linalg.norm(n) == 0 and np.linalg.norm(d) == 0:
@@ -728,9 +728,6 @@ for pos, edge in enumerate(Edges):
     else:
         print('Intersecting edge appear in 3 triangles, not good')
 
-# EdgeCorrespondence = np.nan_to_num(EdgeCorrespondence).astype(np.int64)
-# EdgeCorrespondence = EdgeCorrespondence.astype(np.int64)
-
 # Get edge intersection point
 # Edge_IntersectionPtsIndex = np.zeros((3*Nb_InterSectElmts, 1))
 Edge_IntersectionPtsIndex = np.empty((3*Nb_InterSectElmts, 1))
@@ -741,18 +738,24 @@ Edge_IntersectionPtsIndex[I_Edges_Intersecting] = tmp_edgeInt
 
 # Don't use intersection point duplicate: only one intersection point per edge
 ind_interP = EdgeCorrespondence[I_Edges_Intersecting]
-# ind_interP = np.reshape(ind_interP,(ind_interP.size, 1)) # convert 1d (#,) to 2d (#,1) vector
-# ind_NoInterP = list(np.where(ind_interP == np.isnan)[0])
-ind_interP = ind_interP[~np.isnan(ind_interP)].astype(np.int64)
-# tmp_list = [i for j, i in enumerate(I_Edges_Intersecting) if j not in ind_NoInterP]
+ind_interP = list(ind_interP)
+I_Edges_Intersecting = list(I_Edges_Intersecting)
+t = np.sort(np.where(np.isnan(ind_interP))[0])
+t = t[::-1]
+for ind in t:
+    del ind_interP[ind]
+    del I_Edges_Intersecting[ind]
 
-Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[EdgeCorrespondence[I_Edges_Intersecting].astype(np.int64)][:,0]
-# Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[ind_interP][:,0]
+ind_interP = np.array(ind_interP).astype(np.int64)
+I_Edges_Intersecting = np.array(I_Edges_Intersecting).astype(np.int64)
+
+# Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[EdgeCorrespondence[I_Edges_Intersecting].astype(np.int64)][:,0]
+Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[ind_interP][:,0]
 
 # Get the segments intersecting each triangle
 # The segments are: [Intersecting Point 1 ID , Intersecting Point 2 ID]
-Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex != np.nan]
 # Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex > 0].astype(np.int64)
+Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex != np.nan]
 Segments = Segments[~np.isnan(Segments)].astype(np.int64)
 Segments = list(Segments.reshape((-1,2)))
 
@@ -779,26 +782,19 @@ while Segments:
     # Js, the index of the node within this edge already present in NodesID
     
     tmp1 = np.where(Segments == Curves[str(i)]['NodesID'][-1])
-    # print(i, Curves[str(i)]['NodesID'][-1], tmp1)
     if tmp1[0].size == 0:
         break
     else:
         Is = tmp1[0][0]
         Js = tmp1[1][0]
-    # Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1])
-    # if len(Is) == 0:
-    #     break
-    # Is = Is[0]
-    # Js = Js[0]
-    
+        
     # Nk is the node of the previuously found edge that is not in the
     # current Curves[i][NodesID] list
     # round(Js+2*(0.5-Js)) give 0 if Js = 1 and 1 if Js = 0
     # It gives the other node not yet in NodesID of the identified next edge
     Nk = Segments[Is][int(np.round(Js+2*(0.5-Js)))]
     del Segments[Is]
-    # j += 1
-    
+        
     # Loop until there is no next node
     while Nk:
         Curves[str(i)]['NodesID'].append(Nk)
@@ -809,16 +805,9 @@ while Segments:
             else:
                 Is = tmp2[0][0]
                 Js = tmp2[1][0]
-            # Is, Js = np.where(Segments == Curves[str(i)]['NodesID'][-1])
-            # if len(Is) == 0:
-            #     break
-                
-            # Is = Is[0]
-            # Js = Js[0]
-            
+                       
             Nk = Segments[Is][int(np.round(Js+2*(0.5-Js)))]
             del Segments[Is]
-            # j += 1
         else:
             break
         

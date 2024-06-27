@@ -51,7 +51,7 @@ Z0 = V_all(:,1);
 Z0 = sign((mean(ProxFemTri.Points)-mean(DistFemTri.Points))*Z0)*Z0;
 AuxCSInfo.Z0 = Z0;
 
-[AuxCSInfo, ~] = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, debug_plots);
+%[AuxCSInfo, ~] = Kai2014_femur_fitSphere2FemHead(ProxFemTri, AuxCSInfo, debug_plots);
 
 
 
@@ -65,16 +65,17 @@ min_coord = min(TriObj.Points*Axis)+cut_offset;
 max_coord = max(TriObj.Points*Axis)-cut_offset;
 Alt = min_coord:step:max_coord;
 
-Areas=[];
+% Areas=[];
+% 
+% it = 1;
+% for d = -Alt
+%     [ Curves , Areas(it), ~ ] = TriPlanIntersect(TriObj, Axis, d);
+%     it = it + 1;
+% end
 
-it = 1;
-for d = -Alt
-    [ Curves , Areas(it), ~ ] = TriPlanIntersect(TriObj, Axis, d);
-    it = it + 1;
-end
+d = -235.88
 
-
-
+[ Curves1 , Areas1, ~ ] = TriPlanIntersect(TriObj, Axis, d);
 
 
 

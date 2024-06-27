@@ -609,7 +609,7 @@ Alt = np.arange(min_coord, max_coord, step)
 # Check la función TRIPLANINTERSECT
 #------------
 n= Z0.copy()
-d = -Alt[-35].copy()
+d = -Alt[-60].copy()
 Tr = ProxFemTri.copy()
 
 if np.linalg.norm(n) == 0 and np.linalg.norm(d) == 0:
@@ -710,46 +710,51 @@ PtsInter = P0 + u*ratio
 
 # Make sure the shared edges have the same intersection Points
 # Build an edge correspondance table
-EdgeCorrespondence = np.zeros((3*Nb_InterSectElmts, 1))
-EdgeNbOccurences = np.zeros((3*Nb_InterSectElmts, 1))
 
-for edge1 in I_Edges_Intersecting:
+EdgeCorrespondence = np.empty((3*Nb_InterSectElmts, 1))
+EdgeCorrespondence[:] = np.nan
+
+for pos, edge in enumerate(Edges):
     
-    tmp = np.where((Edges[:,1] == Edges[edge1,0]) & (Edges[:,0] == Edges[edge1,1]))
+    tmp = np.where((Edges[:,1] == edge[0]) & (Edges[:,0] == edge[1]))
+    
     if tmp[0].size == 0:
         continue
+    elif tmp[0].size == 1:
+        i = tmp[0][0]
+        if np.isnan(EdgeCorrespondence[pos]):
+            EdgeCorrespondence[pos] = pos
+            EdgeCorrespondence[i] = pos
     else:
-        edge2 = tmp[0]
-        # edge2 = np.where((Edges[:,1] == Edges[edge1,0]) & (Edges[:,0] == Edges[edge1,1]))[0][0]
-        
-    EdgeNbOccurences[edge1] += 1
-    EdgeNbOccurences[edge2] += 1
-    
-    if EdgeNbOccurences[edge1] == 2:
-        EdgeCorrespondence[edge1] = edge2[0]
-    elif EdgeNbOccurences[edge1] == 1:
-        EdgeCorrespondence[edge1] = edge1
-    else:
-        # loggin.warning('Intersecting edge appear in 3 triangles, not good')
         print('Intersecting edge appear in 3 triangles, not good')
 
-EdgeCorrespondence = EdgeCorrespondence.astype(np.int64)
+# EdgeCorrespondence = np.nan_to_num(EdgeCorrespondence).astype(np.int64)
+# EdgeCorrespondence = EdgeCorrespondence.astype(np.int64)
 
 # Get edge intersection point
-Edge_IntersectionPtsIndex = np.zeros((3*Nb_InterSectElmts, 1))
+# Edge_IntersectionPtsIndex = np.zeros((3*Nb_InterSectElmts, 1))
+Edge_IntersectionPtsIndex = np.empty((3*Nb_InterSectElmts, 1))
+Edge_IntersectionPtsIndex[:] = np.nan
 tmp_edgeInt = np.array(range(len(I_Edges_Intersecting)))
 tmp_edgeInt = np.reshape(tmp_edgeInt,(tmp_edgeInt.size, 1)) # convert 1d (#,) to 2d (#,1) vector
 Edge_IntersectionPtsIndex[I_Edges_Intersecting] = tmp_edgeInt
 
 # Don't use intersection point duplicate: only one intersection point per edge
-Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[EdgeCorrespondence[I_Edges_Intersecting][:,0]]
+ind_interP = EdgeCorrespondence[I_Edges_Intersecting]
+# ind_interP = np.reshape(ind_interP,(ind_interP.size, 1)) # convert 1d (#,) to 2d (#,1) vector
+# ind_NoInterP = list(np.where(ind_interP == np.isnan)[0])
+ind_interP = ind_interP[~np.isnan(ind_interP)].astype(np.int64)
+# tmp_list = [i for j, i in enumerate(I_Edges_Intersecting) if j not in ind_NoInterP]
+
+Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[EdgeCorrespondence[I_Edges_Intersecting].astype(np.int64)][:,0]
+# Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[ind_interP][:,0]
 
 # Get the segments intersecting each triangle
 # The segments are: [Intersecting Point 1 ID , Intersecting Point 2 ID]
-
-Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex>0].astype(np.int64)
+Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex != np.nan]
+# Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex > 0].astype(np.int64)
+Segments = Segments[~np.isnan(Segments)].astype(np.int64)
 Segments = list(Segments.reshape((-1,2)))
-# Segments = list(np.array(list(set(Segments))).reshape((-1,2)))
 
 # Separate the edges to curves structure containing close curves
 j = 1

@@ -25,7 +25,8 @@ from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_fem
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
-    TriErodeMesh, TriKeepLargestPatch, TriOpenMesh, TriPlanIntersect, quickPlotRefSystem
+    TriErodeMesh, TriKeepLargestPatch, TriOpenMesh, TriPlanIntersect, quickPlotRefSystem, \
+    TriSliceObjAlongAxis
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -578,285 +579,15 @@ AuxCSInfo['Z0'] = Z0
 
 # # Isolates the epiphysis
 # # EpiFemTri = GIBOC_isolate_epiphysis(DistFemTri, Z0, 'distal')
-debug_plot = 0
+TriObj = DistFemTri.copy()
 
-cut_offset = 0.5
-step = 0.5
-min_coord = np.min(np.dot(ProxFemTri['Points'], Z0)) + cut_offset
-max_coord = np.max(np.dot(ProxFemTri['Points'], Z0)) - cut_offset
-Alt = np.arange(min_coord, max_coord, step)
+# -------
+# First 0.5 mm in Start and End are not accounted for, for stability.
+slice_step = 1 # mm 
+Areas, Alt, _, _, _ = TriSliceObjAlongAxis(TriObj, Z0, slice_step)
 
-# Curves = {}
-# Areas = {}
-
-# for it, d in enumerate(-Alt):
-    
-#     Curves[str(it)], Areas[str(it)], _ = TriPlanIntersect(ProxFemTri, Z0, d)
-    
-# if debug_plot:
-#     fig = plt.figure()
-#     ax = fig.add_subplot(111, projection='3d')
-#     for key in Curves.keys():
-#         if Curves[key]:
-#             ax.plot(Curves[key]['1']['Pts'][:,0], Curves[key]['1']['Pts'][:,1], Curves[key]['1']['Pts'][:,2], 'k-', linewidth=2)
-#     plt.show()
-
-# print('Sliced #' + str(len(Curves)-1) + ' times')
-# maxArea = Areas[max(Areas, key=Areas.get)]
-# maxAreaInd = int(max(Areas, key=Areas.get))
-# maxAlt = Alt[maxAreaInd]
-
-# Check la función TRIPLANINTERSECT
-#------------
-n= Z0.copy()
-d = -Alt[-95].copy()
-Tr = ProxFemTri.copy()
-
-if np.linalg.norm(n) == 0 and np.linalg.norm(d) == 0:
-    # loggin.error('Not engough input argument for TriPlanIntersect')
-    print('Not engough input argument for TriPlanIntersect')
-
-Pts = Tr['Points']
-n = preprocessing.normalize(n, axis=0)
-
-# If d is a point on the plane and not the d parameter of the plane equation        
-if type(d) is np.ndarray and len(d) > 2:
-    Op = d
-    row, col = d.shape
-    if col == 1:
-        d = np.dot(-d,n)
-    elif row == 1:
-        d = np.dot(-d.T,n)
-    else:
-        # loggin.error('Third input must be an altitude or a point on plane')
-        print('Third input must be an altitude or a point on plane')
-else:
-    # Get a point on the plane
-    n_principal_dir = np.argmax(abs(n))
-    Pts1 = Pts[0].copy()
-    Pts1 = np.reshape(Pts1,(Pts1.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-    Op = Pts1.copy()
-    Pts1[n_principal_dir] = 0
-    Op[n_principal_dir] = (np.dot(-Pts1.T, n) - d)/n[n_principal_dir]
-
-## Find the intersected elements (triagles)
-# Get Points (vertices) list as being over or under the plan
-
-Pts_Over = [1 if np.dot(p.T, n) + d > 0 else 0 for p in Pts]
-Pts_Under = [1 if np.dot(p.T, n) + d < 0 else 0 for p in Pts]
-Pts_OverUnder = np.array(Pts_Over) - np.array(Pts_Under)
-
-if np.sum(Pts_OverUnder == 0) > 0:
-    # loggin.warning('Points were found lying exactly on the intersecting plan, this case might not be correctly handled')
-    print('Points were found lying exactly on the intersecting plan, this case might not be correctly handled')
-
-# Get the facets,elements/triangles/ intersecting the plan
-Elmts_Intersecting = []
-Elmts = Tr['ConnectivityList'] 
-Elmts_IntersectScore = np.sum(Pts_OverUnder[Elmts],axis=1)
-Elmts_Intersecting =  Elmts[np.abs(Elmts_IntersectScore)<3]
-
-# Check the existence of an interaction
-if len(Elmts_Intersecting) == 0:
-    TotArea = 0
-    InterfaceTri = []
-    Curves = {}
-    Curves['1'] = {}
-    Curves['1']['NodesID'] = []
-    Curves['1']['Pts'] = []
-    Curves['1']['Area'] = 0
-    Curves['1']['Hole'] = 0
-    Curves['1']['Text'] = 'No Intersection'
-    # loggin.warning('No intersection found between the plane and the triangulation')
-    print('No intersection found between the plane and the triangulation')
-    # return 0
-
-# Find the Intersecting Edges among the intersected elements
-# Get an edge list from intersecting elmts
-Nb_InterSectElmts = len(Elmts_Intersecting)
-Edges = np.zeros((3*Nb_InterSectElmts, 2))
-
-i = np.array(range(1,Nb_InterSectElmts+1))
-Edges[3*i-3] = Elmts_Intersecting[i-1,:2]
-Edges[3*i-2] = Elmts_Intersecting[i-1,1:3]
-Edges[3*i-1,0] = Elmts_Intersecting[i-1,-1]
-Edges[3*i-1,1] = Elmts_Intersecting[i-1,0]
-Edges = Edges.astype(np.int64)
-
-# Identify the edges crossing the plane
-# They will have an edge status of 0
-Edges_Status = np.sum(Pts_OverUnder[Edges],axis=1)
-
-I_Edges_Intersecting = np.where(Edges_Status == 0)[0]
-# Find the edge plane intersecting points
-# start and end points of each edges
-
-P0 = Pts[Edges[I_Edges_Intersecting,0]]
-P1 = Pts[Edges[I_Edges_Intersecting,1]]
-
-# Vector of the edge
-u = P1 - P0
-
-# Get vectors from point on plane (Op) to edge ends
-v = P0 - Op.T
-
-EdgesLength = np.dot(u,n)
-EdgesUnderPlaneLength = np.dot(-v,n)
-
-ratio = EdgesUnderPlaneLength/EdgesLength
-
-# Get Intersectiong Points Coordinates
-PtsInter = P0 + u*ratio
-
-# Make sure the shared edges have the same intersection Points
-# Build an edge correspondance table
-
-EdgeCorrespondence = np.empty((3*Nb_InterSectElmts, 1))
-EdgeCorrespondence[:] = np.nan
-
-for pos, edge in enumerate(Edges):
-    
-    tmp = np.where((Edges[:,1] == edge[0]) & (Edges[:,0] == edge[1]))
-    
-    if tmp[0].size == 0:
-        continue
-    elif tmp[0].size == 1:
-        i = tmp[0][0]
-        if np.isnan(EdgeCorrespondence[pos]):
-            EdgeCorrespondence[pos] = pos
-            EdgeCorrespondence[i] = pos
-    else:
-        print('Intersecting edge appear in 3 triangles, not good')
-
-# Get edge intersection point
-# Edge_IntersectionPtsIndex = np.zeros((3*Nb_InterSectElmts, 1))
-Edge_IntersectionPtsIndex = np.empty((3*Nb_InterSectElmts, 1))
-Edge_IntersectionPtsIndex[:] = np.nan
-tmp_edgeInt = np.array(range(len(I_Edges_Intersecting)))
-tmp_edgeInt = np.reshape(tmp_edgeInt,(tmp_edgeInt.size, 1)) # convert 1d (#,) to 2d (#,1) vector
-Edge_IntersectionPtsIndex[I_Edges_Intersecting] = tmp_edgeInt
-
-# Don't use intersection point duplicate: only one intersection point per edge
-ind_interP = EdgeCorrespondence[I_Edges_Intersecting]
-ind_interP = list(ind_interP)
-I_Edges_Intersecting = list(I_Edges_Intersecting)
-t = np.sort(np.where(np.isnan(ind_interP))[0])
-t = t[::-1]
-for ind in t:
-    del ind_interP[ind]
-    del I_Edges_Intersecting[ind]
-
-ind_interP = np.array(ind_interP).astype(np.int64)
-I_Edges_Intersecting = np.array(I_Edges_Intersecting).astype(np.int64)
-
-# Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[EdgeCorrespondence[I_Edges_Intersecting].astype(np.int64)][:,0]
-Edge_IntersectionPtsIndex[I_Edges_Intersecting] = Edge_IntersectionPtsIndex[ind_interP][:,0]
-
-# Get the segments intersecting each triangle
-# The segments are: [Intersecting Point 1 ID , Intersecting Point 2 ID]
-# Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex > 0].astype(np.int64)
-Segments = Edge_IntersectionPtsIndex[Edge_IntersectionPtsIndex != np.nan]
-Segments = Segments[~np.isnan(Segments)].astype(np.int64)
-Segments = list(Segments.reshape((-1,2)))
-
-# Separate the edges to curves structure containing close curves
-j = 1
-Curves = {}
-i = 1
-while Segments:
-    # Initialise the Curves Structure, if there are multiple curves this
-    # will lead to trailing zeros that will be removed afterwards
-    Curves[str(i)] = {}
-    Curves[str(i)]['NodesID'] = []
-    Curves[str(i)]['NodesID'].append(Segments[0][0])
-    Curves[str(i)]['NodesID'].append(Segments[0][1])
-    
-    # Remove the semgents added to Curves[i] from the segments list
-    del Segments[0]
-    # j += 1
-    
-    # Find the edge in segments that has a node already in the Curves[i][NodesID]
-    # This edge will be the next edge of the current curve because it's
-    # connected to the current segment
-    # Is, the index of the next edge
-    # Js, the index of the node within this edge already present in NodesID
-    
-    tmp1 = np.where(Segments == Curves[str(i)]['NodesID'][-1])
-    if tmp1[0].size == 0:
-        break
-    else:
-        Is = tmp1[0][0]
-        Js = tmp1[1][0]
-        
-    # Nk is the node of the previuously found edge that is not in the
-    # current Curves[i][NodesID] list
-    # round(Js+2*(0.5-Js)) give 0 if Js = 1 and 1 if Js = 0
-    # It gives the other node not yet in NodesID of the identified next edge
-    Nk = Segments[Is][int(np.round(Js+2*(0.5-Js)))]
-    del Segments[Is]
-        
-    # Loop until there is no next node
-    while Nk:
-        Curves[str(i)]['NodesID'].append(Nk)
-        if Segments:
-            tmp2 = np.where(Segments == Curves[str(i)]['NodesID'][-1])
-            if tmp2[0].size == 0:
-                break
-            else:
-                Is = tmp2[0][0]
-                Js = tmp2[1][0]
-                       
-            Nk = Segments[Is][int(np.round(Js+2*(0.5-Js)))]
-            del Segments[Is]
-        else:
-            break
-        
-    # If there is on next node then we move to the next curve
-    i += 1
-
-# Compute the area of the cross section defined by the curve
-
-# Deal with cases where a cross section presents holes
-# 
-# Get a matrix of curves inclusion -> CurvesInOut :
-# If the curve(i) is within the curve(j) then CurvesInOut(i,j) = 1
-# else  CurvesInOut(i,j) = 0
-
-for key in Curves.keys():
-    Curves[key]['Pts'] = []
-    Curves[key]['Pts'] = PtsInter[Curves[key]['NodesID']]
-    
-    # Replace the close curve in coordinate system where X, Y or Z is 0
-    _, V = np.linalg.eig(np.cov(Curves[key]['Pts'].T))
-    
-    CloseCurveinRplanar1 = np.dot(V.T, Curves[key]['Pts'].T)
-    
-    # Get the area of the section defined by the curve 'key'.
-    # /!\ the curve.Area value Do not account for the area of potential 
-    # holes in the section described by curve 'key'.
-    Curves[key]['Area'] = PolyArea(CloseCurveinRplanar1[0,:],CloseCurveinRplanar1[2,:])
-    
-    CurvesInOut = np.zeros((len(Curves),len(Curves)))
-    
-    for key1 in Curves.keys():
-        if key1 != key:
-            Curves[key1]['Pts'] = []
-            Curves[key1]['Pts'] = PtsInter[Curves[key1]['NodesID']]
-            
-            # Replace the close curve in coordinate system where X, Y or Z is 0
-            _, V = np.linalg.eig(np.cov(Curves[key1]['Pts'].T))
-            
-            CloseCurveinRplanar2 = np.dot(V.T, Curves[key1]['Pts'].T)
-            
-            # Check if the Curves[key] is within the Curves[key1]
-            path1 = CloseCurveinRplanar1[0:3:2,:].T
-            path2 = CloseCurveinRplanar2[0:3:2,:].T
-            
-            p = mpl_path.Path(path1)
-            if any(p.contains_points(path2)):
-                
-                CurvesInOut[int(key)-1, int(key1)-1] = 1
-
+# removes mesh above the limit of epiphysis (Zepi)
+# _, Zepi,_ = fitCSA(Alt, Areas)
 
 
 
@@ -873,7 +604,7 @@ for key in Curves.keys():
 fig = plt.figure()
 ax = fig.add_subplot(projection = '3d')
 # # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
-ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+# ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
 # # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 
 # # ax.plot_trisurf(Patch_Top_FH['Points'][:,0], Patch_Top_FH['Points'][:,1], Patch_Top_FH['Points'][:,2], triangles = Patch_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
@@ -929,9 +660,9 @@ ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri
 # #     p = Tr['Points'][p1]
 # #     ax.scatter(p[0], p[1], p[2], color = "magenta")
 
-for key in Curves.keys():
+# for key in Curves.keys():
     
-    plt.plot(Curves[key]['Pts'][:,0], Curves[key]['Pts'][:,1], Curves[key]['Pts'][:,2], linewidth=4)
+#     plt.plot(Curves[key]['Pts'][:,0], Curves[key]['Pts'][:,1], Curves[key]['Pts'][:,2], linewidth=4)
     
 # ax.set_box_aspect([1,1,1])
 plt.show()

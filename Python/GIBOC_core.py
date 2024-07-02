@@ -875,7 +875,8 @@ def TriPlanIntersect(Tr = {}, n = np.zeros((3,1)), d = np.zeros((3,1)), debug_pl
         # Get the area of the section defined by the curve 'key'.
         # /!\ the curve.Area value Do not account for the area of potential 
         # holes in the section described by curve 'key'.
-        Curves[key]['Area'] = PolyArea(CloseCurveinRplanar1[0,:],CloseCurveinRplanar1[2,:])
+        # Curves[key]['Area'] = PolyArea(CloseCurveinRplanar1[0,:],CloseCurveinRplanar1[1,:])
+        Curves[key]['Area'] = PolyArea(CloseCurveinRplanar1)
         
         CurvesInOut = np.zeros((len(Curves),len(Curves)))
         
@@ -953,8 +954,8 @@ def TriSliceObjAlongAxis(TriObj, Axis, step, cut_offset = 0.5, debug_plot = 0):
     Curves = {}
     Areas = {}
 
-    for it, d in enumerate(Alt):
-        
+    for it, d in enumerate(-Alt):
+
         Curves[str(it)], Areas[str(it)], _ = TriPlanIntersect(TriObj, Axis, d)
         
     if debug_plot:
@@ -1212,3 +1213,21 @@ def sphere_fit(point_cloud):
         ErrorDist.append(np.sum((p - sphere_center.T)**2) - radius**2)
             
     return sphere_center.T, radius, ErrorDist
+
+def fitCSA(Z, Area):   
+    # -------------------------------------------------------------------------
+    # Create a fit of the evolution of the cross section area :
+    # 1st step is to fit a double gaussian on the curve 
+    # 2nd step is to use the result of the first fit to initialize a 2nd
+    # fit of a gaussian plus an affine function : a1*exp(-((x-b1)/c1)^2)+d*x+e
+    # Separate the diaphysis based on the hypothseis that its cross section area
+    # evolve pseudo linearly along its axis while the variation are
+    # exponential for the epiphysis
+    # -------------------------------------------------------------------------
+    
+    
+    
+    return 0
+
+
+

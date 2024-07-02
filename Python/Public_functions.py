@@ -235,14 +235,34 @@ def freeBoundary(Tr = {}):
     
     return FreeB 
 
-# -----------------------------------------------------------------------------
-def PolyArea(x,y):
-    # -------------------------------------------------------------------------
-    correction = x[-1] * y[0] - y[-1]* x[0]
-    main_area = np.dot(x[:-1], y[1:]) - np.dot(y[:-1], x[1:])
-    return 0.5*np.abs(main_area + correction)
-    # return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
+# # -----------------------------------------------------------------------------
+# def PolyArea(x,y):
+#     # -------------------------------------------------------------------------
+#     correction = x[-1] * y[0] - y[-1]* x[0]
+#     main_area = np.dot(x[:-1], y[1:]) - np.dot(y[:-1], x[1:])
+#     return 0.5*np.abs(main_area + correction)
+#     # return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
     
-
-
+# -----------------------------------------------------------------------------
+def PolyArea(Pts):
+    # -------------------------------------------------------------------------    
+    if len(Pts.T) > 2:
+        area = 0
+        PolyCenter = np.mean(Pts, axis=1)
+        
+        for i in range(0,len(Pts.T)-1,2):
+            if i < len(Pts.T):
+                p0 = PolyCenter
+                p1 = Pts[:,i]
+                p2 = Pts[:,i+1]
+                
+                v1 = p1 - p0
+                v2 = p2 - p0
+                
+                area += 0.5*np.linalg.norm(np.cross(v1.T,v2.T))
+    else:
+        area = 0
+        
+    return area
+    
 

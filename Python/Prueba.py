@@ -16,6 +16,8 @@ from sklearn import preprocessing
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib import path as mpl_path
+# from scipy.optimize import leastsq
+from scipy.optimize import curve_fit
 
 
 from Public_functions import load_mesh, freeBoundary, PolyArea
@@ -581,6 +583,8 @@ AuxCSInfo['Z0'] = Z0
 # # EpiFemTri = GIBOC_isolate_epiphysis(DistFemTri, Z0, 'distal')
 TriObj = DistFemTri.copy()
 
+# d = -90
+# Curves, TotArea, _ = TriPlanIntersect(TriObj, Z0, d, 0)
 # -------
 # First 0.5 mm in Start and End are not accounted for, for stability.
 slice_step = 1 # mm 
@@ -588,83 +592,125 @@ Areas, Alt, _, _, _ = TriSliceObjAlongAxis(TriObj, Z0, slice_step)
 
 # removes mesh above the limit of epiphysis (Zepi)
 # _, Zepi,_ = fitCSA(Alt, Areas)
+Z = Alt
+Area = np.array(list(Areas.values()))
 
 
 
 
+Z0 = np.mean(Z)
+Z = Z - Z0
+
+Area = Area/np.mean(Area)
+
+AreaMax = np.max(Area)
+Imax = np.argmax(Area)
+
+# Orientation of bone along the y axis
+if Z[Imax] < np.mean(Z):
+    Or = -1
+else:
+    Or = 1
+
+# ------------------
+def gauss2(x, a1, b1, c1, a2, b2, c2):
+    # a1*exp(-((x-b1)/c1)^2)+a2*exp(-((x-b2)/c2)^2)
+    res =   a1*np.exp(-((x - b1)/c1)**2) \
+          + a2*np.exp(-((x - b2)/c2)**2)
+    return res
+def gauss_lineal(x, a1, b1, c1, d, e):
+    # a1*exp(-((x-b1)/c1)^2)+d*x+e
+    res =   a1*np.exp(-((x - b1)/c1)**2) \
+          + d*x + e
+    return res
 
 
 
+xData = Z
+yData = Area
+# Fit model to data.
+Bounds = ([-np.infty, -np.infty, 0, -np.infty, -np.infty, 0], np.infty)
+StartPoint = np.array([AreaMax, Z[Imax], 20, np.mean(Area), np.mean(Z), 75]) 
+
+popt1, pcov = curve_fit(gauss2, xData, yData, method = 'trf', p0 = StartPoint, bounds=Bounds)
+
+# Fit: 'untitled fit 1'.
+StartPoint = np.array([popt1[0], popt1[1], popt1[2], 0, np.mean(Z)]) 
+
+popt2, pcov = curve_fit(gauss_lineal, xData, yData, method = 'trf', p0 = StartPoint)
 
 
 
-
+plt.figure()
+plt.plot(xData,yData)
+plt.plot(xData, gauss2(xData, *popt1), 'g--', label='fit: a1=%5.3f, b1=%5.3f, c1=%5.3f, a2=%5.3f, b2=%5.3f, c2=%5.3f' % tuple(popt1))
+plt.plot(xData, gauss_lineal(xData, *popt2), 'r--', label='fit: a1=%5.3f, b1=%5.3f, c1=%5.3f, a2=%5.3f, b2=%5.3f, c2=%5.3f' % tuple(popt1))
 #%% PLOTS ....................
 
 fig = plt.figure()
 ax = fig.add_subplot(projection = '3d')
-# # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
-# ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
-# # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# # # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# # ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 
-# # ax.plot_trisurf(Patch_Top_FH['Points'][:,0], Patch_Top_FH['Points'][:,1], Patch_Top_FH['Points'][:,2], triangles = Patch_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
-# # ax.plot_trisurf(Face_Top_FH['Points'][:,0], Face_Top_FH['Points'][:,1], Face_Top_FH['Points'][:,2], triangles = Face_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
+# # # ax.plot_trisurf(Patch_Top_FH['Points'][:,0], Patch_Top_FH['Points'][:,1], Patch_Top_FH['Points'][:,2], triangles = Patch_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
+# # # ax.plot_trisurf(Face_Top_FH['Points'][:,0], Face_Top_FH['Points'][:,1], Face_Top_FH['Points'][:,2], triangles = Face_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
 
-# # ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM_FH['Points'][:,2], triangles = Patch_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'blue')
-# # ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
+# # # ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM_FH['Points'][:,2], triangles = Patch_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'blue')
+# # # ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
 
-# # ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
+# # # ax.plot_trisurf(FemHead0['Points'][:,0], FemHead0['Points'][:,1], FemHead0['Points'][:,2], triangles = FemHead0['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.7, shade=False, color = 'cyan')
 
-# ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
-# # ax.plot_trisurf(TRout['Points'][:,0], TRout['Points'][:,1], TRout['Points'][:,2], triangles = TRout['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+# # ax.plot_trisurf(FemHead['Points'][:,0], FemHead['Points'][:,1], FemHead['Points'][:,2], triangles = FemHead['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
+# # # ax.plot_trisurf(TRout['Points'][:,0], TRout['Points'][:,1], TRout['Points'][:,2], triangles = TRout['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
 
-# # Plot sphere
-# # Create a sphere
-# phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
-# x = 5*np.sin(phi)*np.cos(theta)
-# y = 5*np.sin(phi)*np.sin(theta)
-# z = 5*np.cos(phi)
+# # # Plot sphere
+# # # Create a sphere
+# # phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+# # x = 5*np.sin(phi)*np.cos(theta)
+# # y = 5*np.sin(phi)*np.sin(theta)
+# # z = 5*np.cos(phi)
 
-# ax.plot_surface(x + CSs['CenterFH'][0], y + CSs['CenterFH'][1], z + CSs['CenterFH'][2], color = 'red')
-# ax.plot_surface(x + CenterFH[0,0], y + CenterFH[0,1], z + CenterFH[0,2], color = 'black')
-# ax.plot_surface(x + CSs['CenterFH_Renault'][0], y + CSs['CenterFH_Renault'][1], z + CSs['CenterFH_Renault'][2], color = 'green')
+# # ax.plot_surface(x + CSs['CenterFH'][0], y + CSs['CenterFH'][1], z + CSs['CenterFH'][2], color = 'red')
+# # ax.plot_surface(x + CenterFH[0,0], y + CenterFH[0,1], z + CenterFH[0,2], color = 'black')
+# # ax.plot_surface(x + CSs['CenterFH_Renault'][0], y + CSs['CenterFH_Renault'][1], z + CSs['CenterFH_Renault'][2], color = 'green')
 
 
-# # Plot sphere
-# # Create a sphere
-# phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
-# x = CSs['RadiusFH_Renault']*np.sin(phi)*np.cos(theta)
-# y = CSs['RadiusFH_Renault']*np.sin(phi)*np.sin(theta)
-# z = CSs['RadiusFH_Renault']*np.cos(phi)
+# # # Plot sphere
+# # # Create a sphere
+# # phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+# # x = CSs['RadiusFH_Renault']*np.sin(phi)*np.cos(theta)
+# # y = CSs['RadiusFH_Renault']*np.sin(phi)*np.sin(theta)
+# # z = CSs['RadiusFH_Renault']*np.cos(phi)
 
-# ax.plot_surface(x + CSs['CenterFH_Renault'][0], y + CSs['CenterFH_Renault'][1], z + CSs['CenterFH_Renault'][2], color = 'blue', alpha=0.4)
+# # ax.plot_surface(x + CSs['CenterFH_Renault'][0], y + CSs['CenterFH_Renault'][1], z + CSs['CenterFH_Renault'][2], color = 'blue', alpha=0.4)
 
-# for p in P0:
-#     ax.scatter(p[0], p[1], p[2], color = "red")
-# for p in P1:
-#     ax.scatter(p[0], p[1], p[2], color = "blue")
-
-# # for p1 in Patch['1']:
-# #     p = Tr['Points'][p1]
+# # for p in P0:
 # #     ax.scatter(p[0], p[1], p[2], color = "red")
-# # for p1 in Patch['2']:
-# #     p = Tr['Points'][p1]
-# #     ax.scatter(p[0], p[1], p[2], color = "orange")
-# # for p1 in Patch['3']:
-# #     p = Tr['Points'][p1]
-# #     ax.scatter(p[0], p[1], p[2], color = "green")
-# # for p1 in Patch['4']:
-# #     p = Tr['Points'][p1]
-# #     ax.scatter(p[0], p[1], p[2], color = "cyan")
-# # for p1 in Patch['5']:
-# #     p = Tr['Points'][p1]
-# #     ax.scatter(p[0], p[1], p[2], color = "magenta")
+# # for p in P1:
+# #     ax.scatter(p[0], p[1], p[2], color = "blue")
+
+# # # for p1 in Patch['1']:
+# # #     p = Tr['Points'][p1]
+# # #     ax.scatter(p[0], p[1], p[2], color = "red")
+# # # for p1 in Patch['2']:
+# # #     p = Tr['Points'][p1]
+# # #     ax.scatter(p[0], p[1], p[2], color = "orange")
+# # # for p1 in Patch['3']:
+# # #     p = Tr['Points'][p1]
+# # #     ax.scatter(p[0], p[1], p[2], color = "green")
+# # # for p1 in Patch['4']:
+# # #     p = Tr['Points'][p1]
+# # #     ax.scatter(p[0], p[1], p[2], color = "cyan")
+# # # for p1 in Patch['5']:
+# # #     p = Tr['Points'][p1]
+# # #     ax.scatter(p[0], p[1], p[2], color = "magenta")
 
 # for key in Curves.keys():
     
 #     plt.plot(Curves[key]['Pts'][:,0], Curves[key]['Pts'][:,1], Curves[key]['Pts'][:,2], linewidth=4)
     
-# ax.set_box_aspect([1,1,1])
-plt.show()
+# # ax.set_box_aspect([1,1,1])
+# plt.show()
 
 

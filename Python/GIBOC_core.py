@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
 from matplotlib import path as mpl_path
 from sklearn import preprocessing
+from scipy.optimize import curve_fit
 
 from Public_functions import freeBoundary, \
                               PolyArea
@@ -1224,10 +1225,76 @@ def fitCSA(Z, Area):
     # evolve pseudo linearly along its axis while the variation are
     # exponential for the epiphysis
     # -------------------------------------------------------------------------
+    Zdiaph = 0 
+    Zepi = 0
+    Or = 0
+    # Fit function types ------------------------------------------------------
+    def gauss2(x, a1, b1, c1, a2, b2, c2):
+        # a1*exp(-((x-b1)/c1)^2)+a2*exp(-((x-b2)/c2)^2)
+        res =   a1*np.exp(-((x - b1)/c1)**2) \
+              + a2*np.exp(-((x - b2)/c2)**2)
+        return res
+    def gauss_lineal(x, a1, b1, c1, d, e):
+        # a1*exp(-((x-b1)/c1)^2)+d*x+e
+        res =   a1*np.exp(-((x - b1)/c1)**2) \
+              + d*x + e
+        return res
+    # -------------------------------------------------------------------------
+
+    Z0 = np.mean(Z)
+    Z = Z - Z0
+
+    Area = Area/np.mean(Area)
+
+    AreaMax = np.max(Area)
+    Imax = np.argmax(Area)
+
+    # Orientation of bone along the y axis
+    if Z[Imax] < np.mean(Z):
+        Or = -1
+    else:
+        Or = 1
+
+    xData = Z
+    yData = Area
+    # Fit model to data.
+    Bounds = ([-np.infty, -np.infty, 0, -np.infty, -np.infty, 0], np.infty)
+    StartPoint = np.array([AreaMax, Z[Imax], 20, np.mean(Area), np.mean(Z), 75]) 
+
+    fitresult1, pcov = curve_fit(gauss2, xData, yData, method = 'trf', p0 = StartPoint, bounds=Bounds)
+
+    # Fit: 'untitled fit 1'.
+    StartPoint = np.array([fitresult1[0], fitresult1[1], fitresult1[2], 0, np.mean(Z)]) 
+
+    fitresult2, pcov = curve_fit(gauss_lineal, xData, yData, method = 'trf', p0 = StartPoint)
+
+    # Distance to linear part
+    # Dist2linear = Area - (d*Z + e)
+    Dist2linear = Area - (fitresult2[3]*Z + fitresult2[4])
+
+    Zkept = Z[np.abs(Dist2linear) < np.abs(0.1*np.median(Area))]
+    Zkept = Zkept[2:-2]
+
+    # The End of the diaphysis correspond to the "end" of the gaussian curve
+    # (outside the 95 %) of the gaussian curve surface
+    if Or==-1:
+        ZStartDiaphysis = np.max(Zkept)
+    elif Or==1:
+        ZStartDiaphysis = np.min(Zkept)
+
+    # ZendDiaphysis = b1 - 3*or*c1
+    ZendDiaphysis = fitresult1[1] - 3*Or*fitresult1[2]
+    Zdiaph = Z0 + np.array([ZStartDiaphysis, ZendDiaphysis])
+
+    ZStartEpiphysis = fitresult1[1] - 1.5*Or*fitresult1[2]
+    Zepi = Z0 + ZStartEpiphysis
     
+    # plt.figure()
+    # plt.plot(xData,yData)
+    # plt.plot(xData, gauss2(xData, *fitresult1), 'g--')
+    # plt.plot(xData, gauss_lineal(xData, *fitresult2), 'r--')
     
-    
-    return 0
+    return Zdiaph, Zepi, Or
 
 
 

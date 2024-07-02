@@ -45,7 +45,9 @@ from GIBOC_core import TriInertiaPpties, \
                                     sphere_fit, \
                                      TriKeepLargestPatch, \
                                       TriOpenMesh, \
-                                       TriPlanIntersect
+                                       TriPlanIntersect, \
+                                        TriSliceObjAlongAxis, \
+                                         fitCSA
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -880,11 +882,33 @@ def GIBOC_isolate_epiphysis(TriObj, Z0, prox_epi):
     
     # -------------------------------------------------------------------------    
     EpiTri = {}
+    
+    # Convert tiangulation dict to mesh object --------
+    tmp_TriObj = mesh.Mesh(np.zeros(TriObj['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(TriObj['ConnectivityList']):
+        for j in range(3):
+            tmp_TriObj.vectors[i][j] = TriObj['Points'][f[j],:]
+    # update normals
+    tmp_TriObj.update_normals()
+    # ------------------------------------------------
+
+    # -------
     # First 0.5 mm in Start and End are not accounted for, for stability.
     slice_step = 1 # mm 
-    # Areas, Alt = TriSliceObjAlongAxis(TriObj, Z0, slice_step)
-    
-    
+    Areas, Alt, _, _, _ = TriSliceObjAlongAxis(TriObj, Z0, slice_step)
+
+    # removes mesh above the limit of epiphysis (Zepi)
+    Areas = np.array(list(Areas.values()))
+    _ , Zepi, _ = fitCSA(Alt, Areas)
+
+    # choose the bone part of interest
+    if prox_epi == 'proximal':
+        ElmtsEpi = np.where(np.dot(tmp_TriObj.centroids, Z0) > Zepi)[0]
+    elif prox_epi == 'distal':
+        ElmtsEpi = np.where(np.dot(tmp_TriObj.centroids, Z0) < Zepi)[0]
+
+    # return the triangulation
+    EpiTri = TriReduceMesh(TriObj, ElmtsEpi)
     
     return EpiTri
     

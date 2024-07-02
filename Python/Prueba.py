@@ -23,12 +23,12 @@ from scipy.optimize import curve_fit
 from Public_functions import load_mesh, freeBoundary, PolyArea
 
 from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_femur_fitSphere2FemHead, \
-    Kai2014_femur_fitSphere2FemHead
+    Kai2014_femur_fitSphere2FemHead, GIBOC_isolate_epiphysis
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
     TriErodeMesh, TriKeepLargestPatch, TriOpenMesh, TriPlanIntersect, quickPlotRefSystem, \
-    TriSliceObjAlongAxis
+    TriSliceObjAlongAxis, fitCSA
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -576,75 +576,29 @@ AuxCSInfo['Z0'] = Z0
 #     AuxCSInfo['CenterFH_Renault'] = AuxCSInfo['CenterFH_Kai']
 #     AuxCSInfo['RadiusFH_Renault'] = AuxCSInfo['RadiusFH_Kai']
 
-# # X0 points backwards
-# AuxCSInfo['X0'] = np.cross(AuxCSInfo['Y0'].T, AuxCSInfo['Z0'].T).T
+# X0 points backwards
+AuxCSInfo['X0'] = np.cross(AuxCSInfo['Y0'].T, AuxCSInfo['Z0'].T).T
 
 # # Isolates the epiphysis
-# # EpiFemTri = GIBOC_isolate_epiphysis(DistFemTri, Z0, 'distal')
-TriObj = DistFemTri.copy()
+EpiFemTri = GIBOC_isolate_epiphysis(DistFemTri, Z0, 'distal')
 
-# d = -90
-# Curves, TotArea, _ = TriPlanIntersect(TriObj, Z0, d, 0)
-# -------
-# First 0.5 mm in Start and End are not accounted for, for stability.
-slice_step = 1 # mm 
-Areas, Alt, _, _, _ = TriSliceObjAlongAxis(TriObj, Z0, slice_step)
+# extract full femoral condyles
+print('Extracting femoral condyles articular surfaces...')
 
-# removes mesh above the limit of epiphysis (Zepi)
-# _, Zepi,_ = fitCSA(Alt, Areas)
-Z = Alt
-Area = np.array(list(Areas.values()))
+# [fullCondyle_Med_Tri, fullCondyle_Lat_Tri, AuxCSInfo] = GIBOC_femur_ArticSurf(EpiFemTri, AuxCSInfo, CoeffMorpho, 'full_condyles', debug_plots)
 
 
 
 
-Z0 = np.mean(Z)
-Z = Z - Z0
-
-Area = Area/np.mean(Area)
-
-AreaMax = np.max(Area)
-Imax = np.argmax(Area)
-
-# Orientation of bone along the y axis
-if Z[Imax] < np.mean(Z):
-    Or = -1
-else:
-    Or = 1
-
-# ------------------
-def gauss2(x, a1, b1, c1, a2, b2, c2):
-    # a1*exp(-((x-b1)/c1)^2)+a2*exp(-((x-b2)/c2)^2)
-    res =   a1*np.exp(-((x - b1)/c1)**2) \
-          + a2*np.exp(-((x - b2)/c2)**2)
-    return res
-def gauss_lineal(x, a1, b1, c1, d, e):
-    # a1*exp(-((x-b1)/c1)^2)+d*x+e
-    res =   a1*np.exp(-((x - b1)/c1)**2) \
-          + d*x + e
-    return res
 
 
 
-xData = Z
-yData = Area
-# Fit model to data.
-Bounds = ([-np.infty, -np.infty, 0, -np.infty, -np.infty, 0], np.infty)
-StartPoint = np.array([AreaMax, Z[Imax], 20, np.mean(Area), np.mean(Z), 75]) 
-
-popt1, pcov = curve_fit(gauss2, xData, yData, method = 'trf', p0 = StartPoint, bounds=Bounds)
-
-# Fit: 'untitled fit 1'.
-StartPoint = np.array([popt1[0], popt1[1], popt1[2], 0, np.mean(Z)]) 
-
-popt2, pcov = curve_fit(gauss_lineal, xData, yData, method = 'trf', p0 = StartPoint)
 
 
 
-plt.figure()
-plt.plot(xData,yData)
-plt.plot(xData, gauss2(xData, *popt1), 'g--', label='fit: a1=%5.3f, b1=%5.3f, c1=%5.3f, a2=%5.3f, b2=%5.3f, c2=%5.3f' % tuple(popt1))
-plt.plot(xData, gauss_lineal(xData, *popt2), 'r--', label='fit: a1=%5.3f, b1=%5.3f, c1=%5.3f, a2=%5.3f, b2=%5.3f, c2=%5.3f' % tuple(popt1))
+
+
+
 #%% PLOTS ....................
 
 fig = plt.figure()
@@ -654,7 +608,7 @@ ax = fig.add_subplot(projection = '3d')
 ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 
 # # # ax.plot_trisurf(Patch_Top_FH['Points'][:,0], Patch_Top_FH['Points'][:,1], Patch_Top_FH['Points'][:,2], triangles = Patch_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'green')
-# # # ax.plot_trisurf(Face_Top_FH['Points'][:,0], Face_Top_FH['Points'][:,1], Face_Top_FH['Points'][:,2], triangles = Face_Top_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
+ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')
 
 # # # ax.plot_trisurf(Patch_MM_FH['Points'][:,0], Patch_MM_FH['Points'][:,1], Patch_MM_FH['Points'][:,2], triangles = Patch_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, shade=False, color = 'blue')
 # # # ax.plot_trisurf(Face_MM_FH['Points'][:,0], Face_MM_FH['Points'][:,1], Face_MM_FH['Points'][:,2], triangles = Face_MM_FH['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=1, shade=False, color = 'red')

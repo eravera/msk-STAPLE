@@ -23,12 +23,14 @@ import sys
 import time
 import logging
 from pykdtree.kdtree import KDTree
+import scipy.spatial as spatial
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
 from matplotlib import path as mpl_path
 from sklearn import preprocessing
 from scipy.optimize import curve_fit
+from scipy.spatial import ConvexHull
 
 from Public_functions import freeBoundary, \
                               PolyArea
@@ -1039,7 +1041,162 @@ def cutLongBoneMesh(TrLB, U_0 = np.reshape(np.array([0, 0, 1]),(3, 1)), L_ratio 
     TrDist = TriFillPlanarHoles( TrDist)
     
     return TrProx, TrDist
+
+# -----------------------------------------------------------------------------
+def LargestEdgeConvHull(Pts, Minertia = []):
+    # Compute the convex hull of the points cloud Pts and sort the edges 
+    # by their length.
+    # 
+    # INPUTS:
+    # - Pts: A Point Cloud in 2D [nx2] or 3D [nx3]
+    # 
+    # - Minertia: A matrice of inertia to transform the points beforehand
+    # 
+    # OUTPUTS:
+    # - IdxPointsPair: [mx2] or [mx3] matrix of the index of pair of points 
+    # forming the edges
+    # 
+    # - EdgesLength: a [mx1] matrix of the edges length which rows are in 
+    # correspondance with IdxPointsPair matrix
+    # 
+    # - K: The convex hull of the point cloud
+    # 
+    # - Edges_Length_and_VerticesIDs_merged_sorted: A [mx3] matrix with first 
+    # column corresponding to the edges length and the last two columns 
+    # corresponding to the Index of the points forming the the edge.
+    # -------------------------------------------------------------------------
     
+    r, c = np.shape(Pts)
+
+    if c == 2:
+        # compute convex hull
+        hull = ConvexHull(Pts)
+        # transform it in triangulation
+        #  ---------------
+        # hull object doesn't remove unreferenced vertices
+        # create a mask to re-index faces for only referenced vertices
+        vid = np.sort(hull.vertices)
+        mask = np.zeros(len(hull.points), dtype=np.int64)
+        mask[vid] = np.arange(len(vid))
+        # remove unreferenced vertices here
+        faces = mask[hull.simplices].copy()
+        # rescale vertices back to original size
+        K = hull.points[vid].copy()
+        #  ---------------
+        # KConvHull = {'Points': K, 'ConnectivityList': faces}
+        
+        IdxPointsPair = np.zeros((3*len(faces),2)).astype(np.int64)
+        
+        for pos, tri in enumerate(faces):
+            IdxPointsPair[2*pos] = np.array([tri[0], tri[1]])
+            IdxPointsPair[2*pos+1] = np.array([tri[1], tri[0]])
+        
+        Edge_length = [np.linalg.norm(Pts[v[0]] - Pts[v[1]]) for v in IdxPointsPair]
+        
+        Ind_Edge = np.argsort(Edge_length)
+        Ind_Edge = Ind_Edge[::-1]
+        Edge_length = np.sort(Edge_length)
+        Edge_length = Edge_length[::-1]
+        IdxPointsPair = IdxPointsPair[Ind_Edge]
+
+        
+        Edges_Length_and_VerticesIDs_merged_sorted = np.zeros((int(len(IdxPointsPair)/2),2))
+        # remove duplicated edges
+        Edge_length = Edge_length[::2]
+        IdxPointsPair = IdxPointsPair[::2]
+        Edges_Length_and_VerticesIDs_merged_sorted[:,0] = Edge_length
+        Edges_Length_and_VerticesIDs_merged_sorted[:,1:] = IdxPointsPair
+        
+    elif c == 3:
+        if Minertia:
+            Pts = (Pts - np.mean(Pts, axis = 0))*Minertia
+        # compute convex hull
+        hull = ConvexHull(Pts)
+        # transform it in triangulation
+        #  ---------------
+        # hull object doesn't remove unreferenced vertices
+        # create a mask to re-index faces for only referenced vertices
+        vid = np.sort(hull.vertices)
+        mask = np.zeros(len(hull.points), dtype=np.int64)
+        mask[vid] = np.arange(len(vid))
+        # remove unreferenced vertices here
+        faces = mask[hull.simplices].copy()
+        # rescale vertices back to original size
+        K = hull.points[vid].copy()
+        #  ---------------
+        # KConvHull = {'Points': K, 'ConnectivityList': faces}
+        
+        IdxPointsPair = np.zeros((3*len(faces),2)).astype(np.int64)
+        
+        for pos, tri in enumerate(faces):
+            IdxPointsPair[3*pos] = np.array([tri[0], tri[1]])
+            IdxPointsPair[3*pos+1] = np.array([tri[1], tri[2]])
+            IdxPointsPair[3*pos+2] = np.array([tri[2], tri[0]])
+        
+        Edge_length = [np.linalg.norm(Pts[v[0]] - Pts[v[1]]) for v in IdxPointsPair]
+        
+        Ind_Edge = np.argsort(Edge_length)
+        Ind_Edge = Ind_Edge[::-1]
+        Edge_length = np.sort(Edge_length)
+        Edge_length = Edge_length[::-1]
+        IdxPointsPair = IdxPointsPair[Ind_Edge]
+
+        
+        Edges_Length_and_VerticesIDs_merged_sorted = np.zeros((int(len(IdxPointsPair)/2),3))
+        # remove duplicated edges
+        Edge_length = Edge_length[::2]
+        IdxPointsPair = IdxPointsPair[::2]
+        Edges_Length_and_VerticesIDs_merged_sorted[:,0] = Edge_length
+        Edges_Length_and_VerticesIDs_merged_sorted[:,1:] = IdxPointsPair
+    
+    return IdxPointsPair, Edge_length, K, Edges_Length_and_VerticesIDs_merged_sorted
+
+# -----------------------------------------------------------------------------
+def PCRegionGrowing(Pts, Seeds, r):
+    # -------------------------------------------------------------------------
+    # PointCloud Region growing
+    # Pts : Point Cloud
+    # r : radius threshold 
+    # 
+    # From Seeds found all the points that are inside the spheres of radius r
+    # Then use the found points as new seed loop until no new points are found 
+    # to be in the spheres.
+    # -------------------------------------------------------------------------
+    Pts_Out = {}
+    
+    # Seeds in the considerated point cloud
+    tree = KDTree(Pts)
+    dd, ii = tree.query(Seeds.T, k=1)
+    Seeds = Pts[ii]
+
+    idx = []
+
+    # Get the index of points within the spheres
+    point_tree = spatial.cKDTree(Pts)
+    # This finds the index of all points within distance r of Seeds.
+    I = point_tree.query_ball_point(Seeds, r)[0]
+    # remove index included in idx
+    I = [i for i in I if i not in idx]
+    # Update idx with found indexes
+    idx += I
+    idx = list(set(idx))
+
+    while I:
+        # Update Seeds with found points
+        Seeds = Pts[idx]
+        # Get the index of points within the spheres
+        point_tree = spatial.cKDTree(Pts)
+        # This finds the index of all points within distance r of Seeds.
+        I = point_tree.query_ball_point(Seeds, r)[0]
+        # remove index included in idx
+        I = [i for i in I if i not in idx]
+        # Update idx with found indexes
+        idx += I
+        idx = list(set(idx))
+
+    Pts_Out = Pts[idx]
+    
+    return Pts_Out
 
 
 
@@ -1295,6 +1452,77 @@ def fitCSA(Z, Area):
     # plt.plot(xData, gauss_lineal(xData, *fitresult2), 'r--')
     
     return Zdiaph, Zepi, Or
+
+# -----------------------------------------------------------------------------
+# LSGE ------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def lsplane(X, a0 = np.array([0,0,0])):   
+    # -------------------------------------------------------------------------
+    # LSPLANE.M   Least-squares plane (orthogonal distance regression).
+    # 
+    # Version 1.0    
+    # Last amended   I M Smith 27 May 2002. 
+    # Created        I M Smith 08 Mar 2002
+    # Modified       J B Renault 12 Jan 2017
+    # 
+    # Python Version
+    # Created        E P Ravera 15 July 2024
+    # -------------------------------------------------------------------------
+    # Input    
+    # X: Array [x y z] where x = vector of x-coordinates, y = vector of 
+    # y-coordinates and z = vector of z-coordinates. Dimension: m x 3. 
+    # 
+    # <Optional... 
+    # a0       Array  [v1; v2; v3] a vector to establish proper orientation 
+    # for for plan normal. Dimension: 3 x 1.
+    # ...>
+    # 
+    # Output   
+    # x0: Centroid of the data = point on the best-fit plane. Dimension: 1 x 3. 
+    # 
+    # a: Direction cosines of the normal to the best-fit plane. Dimension: 3 x 1.
+    # 
+    # <Optional... 
+    # d: Residuals. Dimension: m x 1. 
+    # 
+    # normd: Norm of residual errors. Dimension: 1 x 1. 
+    # ...>
+    # 
+    # -------------------------------------------------------------------------
+    
+    # check number of data points 
+    if len(X) < 3:
+        print('ERROR: At least 3 data points required: ' )
+    
+    # calculate centroid
+    x0 = np.mean(X, axis=0)
+    
+    # form matrix A of translated points
+    A = X - x0
+    
+    # calculate the SVD of A
+    U, S, Vh = np.linalg.svd(A, full_matrices=False)
+    
+    # find the smallest singular value in S and extract from V the 
+    # corresponding right singular vector
+    s = np.min(S)
+    i = np.argmin(S)
+    
+    a = Vh[:,i]
+    # Invert (or don"t) normal direction so to have same orientation as a0
+    if np.linalg.norm(a0) != 0:
+        a = np.sign(np.dot(a0, a))*a
+    
+    # calculate residual distances, if required
+    d = U[:,i]*s
+    normd = np.linalg.norm(d)
+    
+    return x0, a, d, normd
+
+
+
+
+
 
 
 

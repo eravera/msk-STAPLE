@@ -22,6 +22,7 @@ from pathlib import Path
 import sys
 import time
 import logging
+import scipy.spatial as spatial
 from scipy.spatial import ConvexHull
 from sklearn import preprocessing
 from mpl_toolkits.mplot3d import Axes3D
@@ -47,9 +48,14 @@ from GIBOC_core import TriInertiaPpties, \
                                       TriOpenMesh, \
                                        TriPlanIntersect, \
                                         TriSliceObjAlongAxis, \
-                                         fitCSA
+                                         fitCSA, \
+                                          LargestEdgeConvHull, \
+                                           PCRegionGrowing, \
+                                            lsplane
 
 from opensim_tools import computeXYZAngleSeq
+
+from Public_functions import freeBoundary
 
 #%% ---------------------------------------------------------------------------
 # PRIVATE
@@ -912,6 +918,144 @@ def GIBOC_isolate_epiphysis(TriObj, Z0, prox_epi):
     
     return EpiTri
     
+# -----------------------------------------------------------------------------
+def GIBOC_femur_processEpiPhysis(EpiFem, CSs, Inertia_Vects, edge_threshold = 0.5, axes_dev_thresh = 0.75):
+    # -------------------------------------------------------------------------
+    
+    debug_plots = 0
+    debug_prints = 0
+
+    # gets largest convex hull
+    IdxPointsPair, Edges, _, _ = LargestEdgeConvHull(EpiFem['Points'])
+
+    # facets are free boundaries if referenced by only one triangle
+    EpiFem_freeBoundary = freeBoundary(EpiFem)
+
+    # Keep elements that are not connected to the proximal cut and that are longer 
+    # than half of the longest Edge (default)
+    # NB Edges is an ordered vector -> first is largest, and vector Ikept should 
+    # store the largest elements
+
+    # Index of nodes identified on condyles
+    IdCdlPts = []
+
+    for pos, edge in enumerate(IdxPointsPair):
+        if 2*len(IdCdlPts) > np.sum(Edges > edge_threshold*Edges[1]):
+            break
+        else:
+            if (edge[0] not in EpiFem_freeBoundary['ID']) and (edge[1] not in EpiFem_freeBoundary['ID']):
+                IdCdlPts.append(edge)
+    IdCdlPts = np.array(IdCdlPts)
+
+    # check on number of saved edges
+    if debug_prints:
+        N_edges = len(Edges)
+        N_saved_edges = len(IdCdlPts)
+        print('Processing ' + str(np.round(N_saved_edges/N_edges*100,2)) + ' % of edges in convex hull.')
+
+    # Axes vector of points pairs
+    Axes = EpiFem['Points'][[item[0] for item in IdCdlPts]] - EpiFem['Points'][[item[1] for item in IdCdlPts]]
+
+    # Remove duplicate Axes that are not directed from Lateral to Medial (CSs.Y0)
+    I_Axes_NOduplicate = np.where(np.dot(Axes,CSs['Y0']) >= 0)[0]
+
+    IdCdlPts = IdCdlPts[I_Axes_NOduplicate]
+    Axes = Axes[I_Axes_NOduplicate]
+
+    # normalize Axes to get unitary vectors
+    U_Axes = preprocessing.normalize(Axes, axis=1)
+
+    # delete if too far from inertial medio-Lat axis;
+    # [LM] 0.75 -> acod(0.75) roughly 41 deg
+    ind_NOdeviant_axes = np.abs(np.dot(U_Axes,Inertia_Vects[2])) >= axes_dev_thresh
+    IdCdlPts = IdCdlPts[ind_NOdeviant_axes]
+    U_Axes = U_Axes[ind_NOdeviant_axes]
+
+    # region growing (point, seed, radius)
+    S = np.mean(U_Axes, axis = 0)
+    S = np.reshape(S,(S.size, 1)) # convert 1d (3,) to 2d (3,1) vector 
+    Seeds = preprocessing.normalize(S, axis=0)
+    r = 0.1
+    U_Axes_Good = PCRegionGrowing(U_Axes, Seeds, r)
+
+    LIA = np.all(np.isin(U_Axes, U_Axes_Good), axis=1)
+    U_Axes = U_Axes[LIA]
+    IdCdlPts = IdCdlPts[LIA]
+
+    # Compute orientation just to check, should be = 1
+    Orientation = np.round(np.mean(np.sign(np.dot(U_Axes,CSs['Y0']))))
+
+    # Assign indices of points on Lateral or Medial Condyles Variable
+    if Orientation < 0:
+        print('Orientation of Lateral->Medial U_Axes vectors of femoral distal epiphysis is not what expected. Please check manually.')
+        med_lat_ind = [1, 0]
+    else:
+        med_lat_ind = [0, 1]
+    
+    #  debug plot
+    if debug_plots:
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(projection = '3d')
+        
+        ax.plot_trisurf(EpiFem['Points'][:,0], EpiFem['Points'][:,1], EpiFem['Points'][:,2], triangles = EpiFem['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'yellow')
+
+        for edge in IdCdlPts:
+            # [LM] debugging plot - see the kept points
+            ax.scatter(EpiFem['Points'][edge[0]][0], EpiFem['Points'][edge[0]][1], EpiFem['Points'][edge[0]][2], color = 'red', s=100)
+            ax.scatter(EpiFem['Points'][edge[1]][0], EpiFem['Points'][edge[1]][1], EpiFem['Points'][edge[1]][2], color = 'blue', s=100)
+            
+            #  [LM] debugging plot (see lines of axes)
+            ax.plot([EpiFem['Points'][edge[0]][0], EpiFem['Points'][edge[1]][0]], \
+                    [EpiFem['Points'][edge[0]][1], EpiFem['Points'][edge[1]][1]], \
+                    [EpiFem['Points'][edge[0]][2], EpiFem['Points'][edge[1]][2]], \
+                    color = 'black', linewidth=4, linestyle='solid')
+
+    return IdCdlPts, U_Axes, med_lat_ind
+
+# -----------------------------------------------------------------------------
+def GIBOC_femur_getCondyleMostProxPoint(EpiFem, CSs, PtsCondylesTrace, U):
+
+    # Convert tiangulation dict to mesh object --------
+    tmp_EpiFem = mesh.Mesh(np.zeros(EpiFem['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(EpiFem['ConnectivityList']):
+        for j in range(3):
+            tmp_EpiFem.vectors[i][j] = EpiFem['Points'][f[j],:]
+    # update normals
+    tmp_EpiFem.update_normals()
+    # ------------------------------------------------
+    sphere_search_radius = 7.5
+    plane_search_thick = 2.5
+    
+    # fitting a lq plane to point in the trace
+    # [Centroid,  Direction cosines of the normal to the best-fit plane]
+    P_centr, lsplane_norm, _, _ = lsplane(PtsCondylesTrace)
+    
+    # looking for points 2.5 mm away from the fitting plane
+    dMed = np.dot(-P_centr,lsplane_norm)
+    IonPlan = np.where((np.abs(np.dot(EpiFem['Points'],lsplane_norm) + dMed) < plane_search_thick) & \
+                       (np.dot(EpiFem['Points'],CSs['Z0']) > np.max(np.dot(PtsCondylesTrace,CSs['Z0']) - plane_search_thick)))[0]
+    IonPlan = list(np.unique(IonPlan))   
+    
+    # searches points in a sphere around (7.5 mm)
+    # Get the index of points within the spheres
+    point_tree = spatial.cKDTree(EpiFem['Points'])
+    # This finds the index of all points within distance r of Seeds.
+    IonC = point_tree.query_ball_point(PtsCondylesTrace, sphere_search_radius)[0]
+    
+    # intersect the two sets
+    IOK = list(set(IonPlan) & set(IonC))
+    IOK = list(np.sort(IOK))
+    
+    Imax = np.argmax(np.dot(tmp_EpiFem.get_unit_normals()[IOK],U))
+    PtTopCondyle = EpiFem['Points'][IOK[Imax]]
+    PtTopCondyle = np.reshape(PtTopCondyle,(PtTopCondyle.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    
+    return PtTopCondyle
+
+
+
+
 
 
 

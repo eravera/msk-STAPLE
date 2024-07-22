@@ -30,7 +30,9 @@ from matplotlib.colors import LightSource
 from matplotlib import path as mpl_path
 from sklearn import preprocessing
 from scipy.optimize import curve_fit
+from scipy.optimize import nnls
 from scipy.spatial import ConvexHull
+import cv2
 
 from Public_functions import freeBoundary, \
                               PolyArea
@@ -1198,6 +1200,26 @@ def PCRegionGrowing(Pts, Seeds, r):
     
     return Pts_Out
 
+# -----------------------------------------------------------------------------
+def PtsOnCondylesFemur(PtsCondyle_0, Pts_Epiphysis, CutAngle, InSetRatio, ellip_dilat_fact):
+    # -------------------------------------------------------------------------
+    # Find points on condyles from a first 2D ellipse Fit on points identifies 
+    # as certain to be on the condyle [PtsCondyle_0] and get points in +- 5 % 
+    # intervall of the fitted ellipse
+    # Points must be expressed in Coordinate system where Y has been identified
+    # as a good initial candidates for ML axis
+    # -------------------------------------------------------------------------
+    
+    
+    
+    
+    return 0
+
+
+
+
+
+
 
 
 #%% ---------------------------------------------------------------------------
@@ -1372,6 +1394,7 @@ def sphere_fit(point_cloud):
             
     return sphere_center.T, radius, ErrorDist
 
+# -----------------------------------------------------------------------------
 def fitCSA(Z, Area):   
     # -------------------------------------------------------------------------
     # Create a fit of the evolution of the cross section area :
@@ -1452,6 +1475,103 @@ def fitCSA(Z, Area):
     # plt.plot(xData, gauss_lineal(xData, *fitresult2), 'r--')
     
     return Zdiaph, Zepi, Or
+
+
+# -----------------------------------------------------------------------------
+def fit_ellipse(x, y):   
+    # -------------------------------------------------------------------------
+    # finds the best fit to an ellipse for the given set of points.
+    # 
+    # Input:    x,y         - a set of points in 2 column vectors. 
+    # 
+    # Output:   ellipse_t - dictionary that defines the best fit to an ellipse
+    #           a         - sub axis (radius) of the X axis of the non-tilt ellipse
+    #           b         - sub axis (radius) of the Y axis of the non-tilt ellipse
+    #           phi       - orientation in radians of the ellipse (tilt)
+    #           X0        - center at the X axis of the non-tilt ellipse
+    #           Y0        - center at the Y axis of the non-tilt ellipse
+    #           long_axis - size of the long axis of the ellipse
+    #           short_axis- size of the short axis of the ellipse
+    # 
+    # Author: eravera
+    # -------------------------------------------------------------------------
+    ellipse_t = {}
+    
+    X = x
+    X = np.reshape(X,(X.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    Y = y
+    Y = np.reshape(Y,(Y.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+
+    # Formulate and solve the non-negative least squares problem ||Mx - b ||^2
+    M = np.hstack([X**2, X * Y, Y**2, X, Y])
+    b = np.ones_like(X)
+    x = nnls(M, b[:,0])[0]
+    
+    # Extract ellipse parameters
+    A = x[0]
+    B = x[1]
+    C = x[2]
+    D = x[3]
+    E = x[4]
+
+    # convert to parametric form
+    M0 = np.array([
+        1, D/2, E/2,
+        D/2, A, B/2,
+        E/2, B/2, C,
+    ]).reshape(3, 3)
+    M = np.array([
+        A, B/2,
+        B/2, C,
+    ]).reshape(2, 2)
+    
+    l1, l2 = np.linalg.eigvals(M)
+    
+    xc = (B*E - 2*C*D)/(4*A*C - B**2)
+    yc = (B*D - 2*A*E)/(4*A*C - B**2)
+    
+    x_axis = np.sqrt(np.abs(-np.linalg.det(M0)/np.linalg.det(M)/l1))
+    y_axis = np.sqrt(np.abs(-np.linalg.det(M0)/np.linalg.det(M)/l2))
+        
+    phi = np.arctan(B/(A - C))/2
+    
+    # rotate the axes backwards to find the center point of the original TILTED ellipse
+    Ux = np.array([np.cos(phi), -np.sin(phi)])
+    Uy = np.array([np.sin(phi), np.cos(phi)])
+    R = np.zeros((2,2))
+    R[:,0] = Ux
+    R[:,1] = Uy
+    tmp_center = np.zeros((2,1))
+    tmp_center[0] = xc
+    tmp_center[1] = yc
+    P_in = np.dot(R,tmp_center)
+    X0_in = P_in[0][0]
+    Y0_in = P_in[1][0]
+     
+    if x_axis > y_axis:
+        long_axis = x_axis
+        short_axis = y_axis
+        
+    else:
+        long_axis = y_axis
+        short_axis = x_axis
+    
+    ellipse_t['b'] = short_axis/2
+    ellipse_t['a'] = long_axis/2
+    ellipse_t['phi'] = phi
+    ellipse_t['X0'] = xc
+    ellipse_t['Y0'] = yc
+    ellipse_t['X0_in'] = X0_in
+    ellipse_t['Y0_in'] = Y0_in
+    ellipse_t['long_axis'] = long_axis
+    ellipse_t['short_axis'] = short_axis
+    
+    return ellipse_t
+
+
+
+
+
 
 # -----------------------------------------------------------------------------
 # LSGE ------------------------------------------------------------------------

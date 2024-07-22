@@ -16,6 +16,7 @@ import time
 import logging
 import scipy.io as sio
 import gmshparser
+from matplotlib import path as mpl_path
 
 # def triangulation(T,P):
 #     # -------------------------------------------------------------------------
@@ -265,4 +266,17 @@ def PolyArea(Pts):
         
     return area
     
-
+# -----------------------------------------------------------------------------
+def inpolygon(xq, yq, xv, yv):
+    # -------------------------------------------------------------------------
+    shape = xq.shape
+    
+    xq = xq.reshape(-1)
+    yq = yq.reshape(-1)
+    xv = xv.reshape(-1)
+    yv = yv.reshape(-1)
+    
+    q = [(xq[i], yq[i]) for i in range(xq.shape[0])]
+    p = mpl_path.Path([(xv[i], yv[i]) for i in range(xv.shape[0])])
+    
+    return p.contains_points(q).reshape(shape)

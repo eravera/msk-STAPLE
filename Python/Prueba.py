@@ -643,6 +643,7 @@ PtsCondylesLat = EpiFem['Points'][IdCdlPts[:,med_lat_ind[1]]]
 
 # debugging plots: plotting the lines between the points identified
 #  debug plot
+debug_plots = 1
 if debug_plots:
     
     fig = plt.figure()

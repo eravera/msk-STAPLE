@@ -32,10 +32,11 @@ from sklearn import preprocessing
 from scipy.optimize import curve_fit
 from scipy.optimize import nnls
 from scipy.spatial import ConvexHull
-import cv2
+from ellipse import LsqEllipse
 
 from Public_functions import freeBoundary, \
-                              PolyArea
+                              PolyArea, \
+                               inpolygon
 
 #%% ---------------------------------------------------------------------------
 # SUBFUNTIONS
@@ -1067,7 +1068,7 @@ def LargestEdgeConvHull(Pts, Minertia = []):
     # column corresponding to the edges length and the last two columns 
     # corresponding to the Index of the points forming the the edge.
     # -------------------------------------------------------------------------
-    
+    debug_plots = 0
     r, c = np.shape(Pts)
 
     if c == 2:
@@ -1085,14 +1086,17 @@ def LargestEdgeConvHull(Pts, Minertia = []):
         # rescale vertices back to original size
         K = hull.points[vid].copy()
         #  ---------------
-        # KConvHull = {'Points': K, 'ConnectivityList': faces}
+        KConvHull = {'Points': K, 'ConnectivityList': faces}
         
-        IdxPointsPair = np.zeros((3*len(faces),2)).astype(np.int64)
+        IdxPointsPair = np.zeros((2*len(faces),2)).astype(np.int64)
         
-        for pos, tri in enumerate(faces):
-            IdxPointsPair[2*pos] = np.array([tri[0], tri[1]])
-            IdxPointsPair[2*pos+1] = np.array([tri[1], tri[0]])
-        
+        for pos, tri in enumerate(KConvHull['ConnectivityList']):
+            ind0 = np.where(np.linalg.norm(KConvHull['Points'][tri[0]] - Pts, axis = 1) == 0)[0][0]
+            ind1 = np.where(np.linalg.norm(KConvHull['Points'][tri[1]] - Pts, axis = 1) == 0)[0][0]
+                        
+            IdxPointsPair[2*pos] = np.array([ind0, ind1])
+            IdxPointsPair[2*pos+1] = np.array([ind1, ind0])
+                
         Edge_length = [np.linalg.norm(Pts[v[0]] - Pts[v[1]]) for v in IdxPointsPair]
         
         Ind_Edge = np.argsort(Edge_length)
@@ -1126,14 +1130,18 @@ def LargestEdgeConvHull(Pts, Minertia = []):
         # rescale vertices back to original size
         K = hull.points[vid].copy()
         #  ---------------
-        # KConvHull = {'Points': K, 'ConnectivityList': faces}
-        
+        KConvHull = {'Points': K, 'ConnectivityList': faces}
+                
         IdxPointsPair = np.zeros((3*len(faces),2)).astype(np.int64)
         
-        for pos, tri in enumerate(faces):
-            IdxPointsPair[3*pos] = np.array([tri[0], tri[1]])
-            IdxPointsPair[3*pos+1] = np.array([tri[1], tri[2]])
-            IdxPointsPair[3*pos+2] = np.array([tri[2], tri[0]])
+        for pos, tri in enumerate(KConvHull['ConnectivityList']):
+            ind0 = np.where(np.linalg.norm(KConvHull['Points'][tri[0]] - Pts, axis = 1) == 0)[0][0]
+            ind1 = np.where(np.linalg.norm(KConvHull['Points'][tri[1]] - Pts, axis = 1) == 0)[0][0]
+            ind2 = np.where(np.linalg.norm(KConvHull['Points'][tri[2]] - Pts, axis = 1) == 0)[0][0]
+            
+            IdxPointsPair[3*pos] = np.array([ind0, ind1])
+            IdxPointsPair[3*pos+1] = np.array([ind1, ind2])
+            IdxPointsPair[3*pos+2] = np.array([ind2, ind0])
         
         Edge_length = [np.linalg.norm(Pts[v[0]] - Pts[v[1]]) for v in IdxPointsPair]
         
@@ -1150,6 +1158,24 @@ def LargestEdgeConvHull(Pts, Minertia = []):
         IdxPointsPair = IdxPointsPair[::2]
         Edges_Length_and_VerticesIDs_merged_sorted[:,0] = Edge_length
         Edges_Length_and_VerticesIDs_merged_sorted[:,1:] = IdxPointsPair
+        
+        if debug_plots:
+            fig = plt.figure()
+            ax = fig.add_subplot(projection = '3d')
+            ax.plot_trisurf(KConvHull['Points'][:,0], KConvHull['Points'][:,1], KConvHull['Points'][:,2], triangles = KConvHull['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'green')
+            for edge in IdxPointsPair:
+                ind0 = np.where(np.linalg.norm(Pts[edge[0]] - KConvHull['Points'], axis = 1) == 0)[0][0]
+                ind1 = np.where(np.linalg.norm(Pts[edge[1]] - KConvHull['Points'], axis = 1) == 0)[0][0]
+                
+                # [ER] debugging plot - see the kept points
+                ax.scatter(KConvHull['Points'][ind0][0], KConvHull['Points'][ind0][1], KConvHull['Points'][ind0][2], color = 'red', s=100)
+                ax.scatter(KConvHull['Points'][ind1][0], KConvHull['Points'][ind1][1], KConvHull['Points'][ind1][2], color = 'blue', s=100)
+                
+                #  [ER] debugging plot (see lines of axes)
+                ax.plot([KConvHull['Points'][ind0][0], KConvHull['Points'][ind1][0]], \
+                        [KConvHull['Points'][ind0][1], KConvHull['Points'][ind1][1]], \
+                        [KConvHull['Points'][ind0][2], KConvHull['Points'][ind1][2]], \
+                        color = 'black', linewidth=4, linestyle='solid')
     
     return IdxPointsPair, Edge_length, K, Edges_Length_and_VerticesIDs_merged_sorted
 
@@ -1210,10 +1236,86 @@ def PtsOnCondylesFemur(PtsCondyle_0, Pts_Epiphysis, CutAngle, InSetRatio, ellip_
     # as a good initial candidates for ML axis
     # -------------------------------------------------------------------------
     
+    Elps = fit_ellipse(PtsCondyle_0[:,2], PtsCondyle_0[:,0])
+
+    Ux = np.array([np.cos(Elps['phi']), -np.sin(Elps['phi'])])
+    Uy = np.array([np.sin(Elps['phi']), np.cos(Elps['phi'])])
+    R = np.zeros((2,2))
+    R[0] = Ux
+    R[1] = Uy
+
+    # the ellipse
+    theta_r = np.linspace(0, 2*np.pi, 36)
+    ellipse_x_r = InSetRatio*Elps['width']*np.cos(theta_r)
+    ellipse_y_r = InSetRatio*Elps['height']*np.sin(theta_r)
+    tmp_ellipse_r = np.zeros((2,len(ellipse_x_r)))
+    tmp_ellipse_r[0,:] = ellipse_x_r
+    tmp_ellipse_r[1,:] = ellipse_y_r
+
+    rotated_ellipse = (R @ tmp_ellipse_r).T
+    rotated_ellipse[:,0] = rotated_ellipse[:,0] + Elps['X0']
+    rotated_ellipse[:,1] = rotated_ellipse[:,1] + Elps['Y0']
+
+
+    OUT_Elps = ~inpolygon(Pts_Epiphysis[:,2], Pts_Epiphysis[:,0], rotated_ellipse[:,0], rotated_ellipse[:,1])
+
+    # compute convex hull
+    points = PtsCondyle_0[:,[2,0]]
+    hull = ConvexHull(points)
+
+    # ConvexHull dilated by 2.5% relative to the ellipse center distance
+    IN_CH = inpolygon(Pts_Epiphysis[:,2], Pts_Epiphysis[:,0], \
+                      points[hull.vertices,0] + ellip_dilat_fact*(points[hull.vertices,0] - Elps['X0']), \
+                      points[hull.vertices,1] + ellip_dilat_fact*(points[hull.vertices,1] - Elps['Y0']))
+
+    # find furthest point
+    tmp_Cin = np.array([Elps['X0'], Elps['Y0']])
+    PtsinEllipseCF = Pts_Epiphysis[:,[2,0]] - tmp_Cin
+
+    SqrdDist2Center = np.dot(PtsinEllipseCF, Ux)**2 + np.dot(PtsinEllipseCF, Uy)**2 
+
+    I = np.argmax(SqrdDist2Center)
+
+    UEllipseCF = preprocessing.normalize(PtsinEllipseCF, axis=1)
+
+
+    if np.dot(Pts_Epiphysis[I,[2,0]] - tmp_Cin, Uy) > 0:
+        
+        EXT_Posterior = (np.dot(UEllipseCF, Uy) < -np.cos(np.pi/2 - CutAngle*np.pi/180)) \
+            | ((np.dot(UEllipseCF, Uy) < 0) & (np.dot(UEllipseCF, Ux) > 0))
+            
+    else:
+        
+        EXT_Posterior = (np.dot(UEllipseCF, Uy) > np.cos(np.pi/2 - CutAngle*np.pi/180)) \
+            | ((np.dot(UEllipseCF, Uy) > 0) & (np.dot(UEllipseCF, Ux) > 0))
+            
+    # Points must be Outsided of the reduced ellipse and inside the Convexhull
+    I_kept = OUT_Elps & IN_CH & ~EXT_Posterior
+            
+    # outputs
+    PtsCondyle_end = Pts_Epiphysis[I_kept]
+    PtsKeptID = np.where(I_kept == True)[0]
+
+    # plotting
+    debug_plots = 0
+    if debug_plots:
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        
+        ax.scatter(Pts_Epiphysis[:,2], Pts_Epiphysis[:,0], color = 'green')
+        ax.plot(rotated_ellipse[:,0], rotated_ellipse[:,1], color = 'red')
+        ax.scatter(Pts_Epiphysis[I_kept,2], Pts_Epiphysis[I_kept,0], color = 'red', marker='s')
+                
+        ax.scatter(np.mean(Pts_Epiphysis[:,2]), np.mean(Pts_Epiphysis[:,0]), color = 'k', marker='s')
+        ax.scatter(Pts_Epiphysis[I,2], Pts_Epiphysis[I,0], color = 'r', marker='d')
+        ax.plot(points[hull.vertices,0], points[hull.vertices,1], 'k', lw=2)
+        ax.scatter(PtsCondyle_0[:,2], PtsCondyle_0[:,0], color = 'k', marker='d')
+        ax.plot(points[hull.vertices,0], points[hull.vertices,1], 'c--', lw=2)
     
     
     
-    return 0
+    return PtsCondyle_end, PtsKeptID
 
 
 
@@ -1485,86 +1587,25 @@ def fit_ellipse(x, y):
     # Input:    x,y         - a set of points in 2 column vectors. 
     # 
     # Output:   ellipse_t - dictionary that defines the best fit to an ellipse
-    #           a         - sub axis (radius) of the X axis of the non-tilt ellipse
-    #           b         - sub axis (radius) of the Y axis of the non-tilt ellipse
     #           phi       - orientation in radians of the ellipse (tilt)
-    #           X0        - center at the X axis of the non-tilt ellipse
-    #           Y0        - center at the Y axis of the non-tilt ellipse
-    #           long_axis - size of the long axis of the ellipse
-    #           short_axis- size of the short axis of the ellipse
+    #           X0        - center at the X axis
+    #           Y0        - center at the Y axis
+    #           width - size of the long axis of the ellipse
+    #           height- size of the short axis of the ellipse
     # 
     # Author: eravera
     # -------------------------------------------------------------------------
     ellipse_t = {}
-    
-    X = x
-    X = np.reshape(X,(X.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-    Y = y
-    Y = np.reshape(Y,(Y.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-
-    # Formulate and solve the non-negative least squares problem ||Mx - b ||^2
-    M = np.hstack([X**2, X * Y, Y**2, X, Y])
-    b = np.ones_like(X)
-    x = nnls(M, b[:,0])[0]
-    
-    # Extract ellipse parameters
-    A = x[0]
-    B = x[1]
-    C = x[2]
-    D = x[3]
-    E = x[4]
-
-    # convert to parametric form
-    M0 = np.array([
-        1, D/2, E/2,
-        D/2, A, B/2,
-        E/2, B/2, C,
-    ]).reshape(3, 3)
-    M = np.array([
-        A, B/2,
-        B/2, C,
-    ]).reshape(2, 2)
-    
-    l1, l2 = np.linalg.eigvals(M)
-    
-    xc = (B*E - 2*C*D)/(4*A*C - B**2)
-    yc = (B*D - 2*A*E)/(4*A*C - B**2)
-    
-    x_axis = np.sqrt(np.abs(-np.linalg.det(M0)/np.linalg.det(M)/l1))
-    y_axis = np.sqrt(np.abs(-np.linalg.det(M0)/np.linalg.det(M)/l2))
         
-    phi = np.arctan(B/(A - C))/2
-    
-    # rotate the axes backwards to find the center point of the original TILTED ellipse
-    Ux = np.array([np.cos(phi), -np.sin(phi)])
-    Uy = np.array([np.sin(phi), np.cos(phi)])
-    R = np.zeros((2,2))
-    R[:,0] = Ux
-    R[:,1] = Uy
-    tmp_center = np.zeros((2,1))
-    tmp_center[0] = xc
-    tmp_center[1] = yc
-    P_in = np.dot(R,tmp_center)
-    X0_in = P_in[0][0]
-    Y0_in = P_in[1][0]
-     
-    if x_axis > y_axis:
-        long_axis = x_axis
-        short_axis = y_axis
+    X = np.array(list(zip(x, y)))
+    reg = LsqEllipse().fit(X)
+    center, width, height, phi = reg.as_parameters()
         
-    else:
-        long_axis = y_axis
-        short_axis = x_axis
-    
-    ellipse_t['b'] = short_axis/2
-    ellipse_t['a'] = long_axis/2
     ellipse_t['phi'] = phi
-    ellipse_t['X0'] = xc
-    ellipse_t['Y0'] = yc
-    ellipse_t['X0_in'] = X0_in
-    ellipse_t['Y0_in'] = Y0_in
-    ellipse_t['long_axis'] = long_axis
-    ellipse_t['short_axis'] = short_axis
+    ellipse_t['X0'] = center[0]
+    ellipse_t['Y0'] = center[1]
+    ellipse_t['height'] = height
+    ellipse_t['width'] = width
     
     return ellipse_t
 

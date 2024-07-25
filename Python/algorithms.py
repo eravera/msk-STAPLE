@@ -922,7 +922,7 @@ def GIBOC_isolate_epiphysis(TriObj, Z0, prox_epi):
 def GIBOC_femur_processEpiPhysis(EpiFem, CSs, Inertia_Vects, edge_threshold = 0.5, axes_dev_thresh = 0.75):
     # -------------------------------------------------------------------------
     
-    debug_plots = 1
+    debug_plots = 0
     debug_prints = 0
 
     # gets largest convex hull
@@ -954,24 +954,6 @@ def GIBOC_femur_processEpiPhysis(EpiFem, CSs, Inertia_Vects, edge_threshold = 0.
     #         if (edge[0] not in EpiFem_freeBoundary['ID']) and (edge[1] not in EpiFem_freeBoundary['ID']):
     #             IdCdlPts.append(edge)
     # IdCdlPts = np.array(IdCdlPts)
-    
-    if debug_plots:
-        
-        fig = plt.figure()
-        ax = fig.add_subplot(projection = '3d')
-        
-        ax.plot_trisurf(EpiFem['Points'][:,0], EpiFem['Points'][:,1], EpiFem['Points'][:,2], triangles = EpiFem['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'yellow')
-
-        for edge in IdCdlPts:
-            # [LM] debugging plot - see the kept points
-            ax.scatter(EpiFem['Points'][edge[0]][0], EpiFem['Points'][edge[0]][1], EpiFem['Points'][edge[0]][2], color = 'red', s=100)
-            ax.scatter(EpiFem['Points'][edge[1]][0], EpiFem['Points'][edge[1]][1], EpiFem['Points'][edge[1]][2], color = 'blue', s=100)
-            
-            #  [LM] debugging plot (see lines of axes)
-            ax.plot([EpiFem['Points'][edge[0]][0], EpiFem['Points'][edge[1]][0]], \
-                    [EpiFem['Points'][edge[0]][1], EpiFem['Points'][edge[1]][1]], \
-                    [EpiFem['Points'][edge[0]][2], EpiFem['Points'][edge[1]][2]], \
-                    color = 'black', linewidth=4, linestyle='solid')
     
     # check on number of saved edges
     if debug_prints:

@@ -643,7 +643,7 @@ PtsCondylesLat = EpiFem['Points'][IdCdlPts[:,med_lat_ind[1]]]
 
 # debugging plots: plotting the lines between the points identified
 #  debug plot
-debug_plots = 0
+debug_plots = 1
 if debug_plots:
     
     fig = plt.figure()
@@ -672,8 +672,11 @@ Y1 = np.reshape(Y1,(Y1.size, 1)) # convert 1d (3,) to 2d (3,1) vector
 Y1 = preprocessing.normalize(Y1, axis=0)
 X1 = preprocessing.normalize(np.cross(Y1.T,Z0.T), axis=1).T
 Z1 = np.cross(X1.T, Y1.T).T
-VC = np.array([X1[:,0], Y1[:,0], Z1[:,0]])
-
+# VC = np.array([X1[:,0], Y1[:,0], Z1[:,0]])
+VC = np.zeros((3,3))
+VC[:,0] = X1[:,0]
+VC[:,1] = Y1[:,0]
+VC[:,2] = Z1[:,0]
 # The intercondyle distance being larger posteriorly the mean center of
 # 50% longest edges connecting the condyles is located posteriorly.
 # NB edge threshold is customizable
@@ -686,7 +689,7 @@ MidPtEpiFem = np.mean(EpiFem['Points'], axis=0)
 
 # Select Post Condyle points :
 # Med & Lat Points is the most distal-Posterior on the condyles
-X1 = np.sign(np.dot((MidPtEpiFem - MidPtPosterCondyle), X1)*X1)
+X1 = np.sign(np.dot((MidPtEpiFem - MidPtPosterCondyle), X1))*X1
 U =  preprocessing.normalize(3*Z0 - X1, axis=0)
 
 # Add ONE point (top one) on each proximal edges of each condyle that might
@@ -707,6 +710,8 @@ PtMiddleCondyle = np.reshape(PtMiddleCondyle,(PtMiddleCondyle.size, 1)) # conver
 
 # transformations on the new refernce system: x_n = (R*x')'=x*R' [TO CHECK]
 Pt_AxisOnSurf_proj = np.dot(PtMiddleCondyle.T,VC).T # middle point
+# Pt_AxisOnSurf_proj = np.dot(VC, PtMiddleCondyle) # middle point
+
 Epiphysis_Pts_DF_2D_RC  = np.dot(EpiFem['Points'],VC) # distal femur
 
 # THESE TRANSFORMATION ARE INVERSE [LM]
@@ -736,102 +741,33 @@ C2_Pts_DF_2D_RC = Epiphysis_Pts_DF_2D_RC[Epiphysis_Pts_DF_2D_RC[:,1] - Pt_AxisOn
 
 # Identify full articular surface of condyles (points) by fitting an ellipse 
 # on long convexhull edges extremities
-ArticularSurface_Lat, _ = PtsOnCondylesFemur( Pts_Proj_CLat, C1_Pts_DF_2D_RC, \
+ArticularSurface_Lat, _ = PtsOnCondylesFemur(Pts_Proj_CLat, C1_Pts_DF_2D_RC, \
                                              CutAngle_Lat, InSetRatio, ellip_dilat_fact)
 ArticularSurface_Lat = ArticularSurface_Lat @ VC.T
-# # --------- PtsOnCondylesFemur
-# PtsCondyle_0 = Pts_Proj_CLat
-# Pts_Epiphysis = C1_Pts_DF_2D_RC
-# CutAngle = CutAngle_Lat
-# InSetRatio = InSetRatio
-# # InSetRatio = 1
-# ellip_dilat_fact = ellip_dilat_fact
+ArticularSurface_Med, _ = PtsOnCondylesFemur(Pts_Proj_CMed, C2_Pts_DF_2D_RC, \
+                                             CutAngle_Med, InSetRatio, ellip_dilat_fact)
+ArticularSurface_Med = ArticularSurface_Med @ VC.T
 
-# # --------
+# locate notch using updated estimation of X1
+MidPtPosterCondyleIt2 = np.mean(np.concatenate([ArticularSurface_Lat, ArticularSurface_Med]), axis = 0)
+MidPtPosterCondyleIt2 = np.reshape(MidPtPosterCondyleIt2,(1, MidPtPosterCondyleIt2.size)) # convert 1d (3,) to 2d (3,1) vector 
 
-# Elps = fit_ellipse(PtsCondyle_0[:,2], PtsCondyle_0[:,0])
-
-# Ux = np.array([np.cos(Elps['phi']), -np.sin(Elps['phi'])])
-# Uy = np.array([np.sin(Elps['phi']), np.cos(Elps['phi'])])
-# R = np.zeros((2,2))
-# R[0] = Ux
-# R[1] = Uy
-
-# # the ellipse
-# theta_r = np.linspace(0, 2*np.pi, 36)
-# ellipse_x_r = InSetRatio*Elps['width']*np.cos(theta_r)
-# ellipse_y_r = InSetRatio*Elps['height']*np.sin(theta_r)
-# tmp_ellipse_r = np.zeros((2,len(ellipse_x_r)))
-# tmp_ellipse_r[0,:] = ellipse_x_r
-# tmp_ellipse_r[1,:] = ellipse_y_r
-
-# rotated_ellipse = (R @ tmp_ellipse_r).T
-# rotated_ellipse[:,0] = rotated_ellipse[:,0] + Elps['X0']
-# rotated_ellipse[:,1] = rotated_ellipse[:,1] + Elps['Y0']
+X1 = np.sign(np.dot((MidPtEpiFem - MidPtPosterCondyleIt2), X1))*X1
+U =  preprocessing.normalize(-Z0 - 3*X1, axis=0)
 
 
-# OUT_Elps = ~inpolygon(Pts_Epiphysis[:,2], Pts_Epiphysis[:,0], rotated_ellipse[:,0], rotated_ellipse[:,1])
-
-# # compute convex hull
-# points = PtsCondyle_0[:,[2,0]]
-# hull = ConvexHull(points)
-
-# # ConvexHull dilated by 2.5% relative to the ellipse center distance
-# IN_CH = inpolygon(Pts_Epiphysis[:,2], Pts_Epiphysis[:,0], \
-#                   points[hull.vertices,0] + ellip_dilat_fact*(points[hull.vertices,0] - Elps['X0']), \
-#                   points[hull.vertices,1] + ellip_dilat_fact*(points[hull.vertices,1] - Elps['Y0']))
-
-# # find furthest point
-# tmp_Cin = np.array([Elps['X0'], Elps['Y0']])
-# PtsinEllipseCF = Pts_Epiphysis[:,[2,0]] - tmp_Cin
-
-# SqrdDist2Center = np.dot(PtsinEllipseCF, Ux)**2 + np.dot(PtsinEllipseCF, Uy)**2 
-
-# I = np.argmax(SqrdDist2Center)
-
-# UEllipseCF = preprocessing.normalize(PtsinEllipseCF, axis=1)
 
 
-# if np.dot(Pts_Epiphysis[I,[2,0]] - tmp_Cin, Uy) > 0:
-    
-#     EXT_Posterior = (np.dot(UEllipseCF, Uy) < -np.cos(np.pi/2 - CutAngle*np.pi/180)) \
-#         | ((np.dot(UEllipseCF, Uy) < 0) & (np.dot(UEllipseCF, Ux) > 0))
-        
-# else:
-    
-#     EXT_Posterior = (np.dot(UEllipseCF, Uy) > np.cos(np.pi/2 - CutAngle*np.pi/180)) \
-#         | ((np.dot(UEllipseCF, Uy) > 0) & (np.dot(UEllipseCF, Ux) > 0))
-        
-# # Points must be Outsided of the reduced ellipse and inside the Convexhull
-# I_kept = OUT_Elps & IN_CH & ~EXT_Posterior
-        
-# # outputs
-# PtsCondyle_end = Pts_Epiphysis[I_kept]
-# PtsKeptID = np.where(I_kept == True)[0]
 
-# # plotting
-# debug_plots = 1
-# if debug_plots:
-    
-#     fig = plt.figure()
-#     ax = fig.add_subplot(111)
-    
-#     ax.scatter(Pts_Epiphysis[:,2], Pts_Epiphysis[:,0], color = 'green')
-#     ax.plot(rotated_ellipse[:,0], rotated_ellipse[:,1], color = 'red')
-#     ax.scatter(Pts_Epiphysis[I_kept,2], Pts_Epiphysis[I_kept,0], color = 'red', marker='s')
-        
-#     # ax.quiver(Elps['X0'], Elps['Y0'], \
-#     #           Elps['X0'] + 1*np.cos(Elps['phi']), Elps['Y0'] + 1*np.sin(-Elps['phi']), \
-#     #           color='blue')
-#     # ax.quiver(Elps['X0'], Elps['Y0'], \
-#     #           Elps['X0'] + 1*np.sin(Elps['phi']), Elps['Y0'] + 1*np.cos(Elps['phi']), \
-#     #           color='red')
-    
-#     ax.scatter(np.mean(Pts_Epiphysis[:,2]), np.mean(Pts_Epiphysis[:,0]), color = 'k', marker='s')
-#     ax.scatter(Pts_Epiphysis[I,2], Pts_Epiphysis[I,0], color = 'r', marker='d')
-#     ax.plot(points[hull.vertices,0], points[hull.vertices,1], 'k', lw=2)
-#     ax.scatter(PtsCondyle_0[:,2], PtsCondyle_0[:,0], color = 'k', marker='d')
-#     ax.plot(points[hull.vertices,0], points[hull.vertices,1], 'c--', lw=2)
+
+
+
+
+
+
+
+
+
 
 
 

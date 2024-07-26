@@ -1055,7 +1055,7 @@ def GIBOC_femur_getCondyleMostProxPoint(EpiFem, CSs, PtsCondylesTrace, U):
     IOK = list(set(IonPlan) & set(IonC))
     IOK = list(np.sort(IOK))
     
-    Imax = np.argmax(np.dot(tmp_EpiFem.get_unit_normals()[IOK],U))
+    Imax = np.argmax(np.dot(tmp_EpiFem.get_unit_normals()[IOK], U))
     PtTopCondyle = EpiFem['Points'][IOK[Imax]]
     PtTopCondyle = np.reshape(PtTopCondyle,(PtTopCondyle.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     

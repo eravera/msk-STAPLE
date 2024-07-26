@@ -1279,7 +1279,7 @@ def PtsOnCondylesFemur(PtsCondyle_0, Pts_Epiphysis, CutAngle, InSetRatio, ellip_
     UEllipseCF = preprocessing.normalize(PtsinEllipseCF, axis=1)
 
 
-    if np.dot(Pts_Epiphysis[I,[2,0]] - tmp_Cin, Uy) > 0:
+    if np.dot(Pts_Epiphysis[I,[2,0]] - tmp_Cin, Uy) < 0:
         
         EXT_Posterior = (np.dot(UEllipseCF, Uy) < -np.cos(np.pi/2 - CutAngle*np.pi/180)) \
             | ((np.dot(UEllipseCF, Uy) < 0) & (np.dot(UEllipseCF, Ux) > 0))
@@ -1297,7 +1297,7 @@ def PtsOnCondylesFemur(PtsCondyle_0, Pts_Epiphysis, CutAngle, InSetRatio, ellip_
     PtsKeptID = np.where(I_kept == True)[0]
 
     # plotting
-    debug_plots = 0
+    debug_plots = 1
     if debug_plots:
         
         fig = plt.figure()

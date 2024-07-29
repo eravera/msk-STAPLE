@@ -232,7 +232,13 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
         if np.sum(np.mod(NodesKept, 1)) == 0: # NodesID given
             NodesIDKept = NodesKept
         else: # Nodes Coordinates given
-            NodesIDKept = [np.where(TR['Points'] == coord)[0][0] for coord in NodesKept]
+            # NodesIDKept = [np.where(TR['Points'] == coord)[0][0] for coord in NodesKept]
+            NodesIDKept = []
+            for coord in NodesKept:
+                tmp1 = list(np.where(TR['Points'] == coord)[0])
+                if tmp1 != []:
+                    NodesIDKept += list(set(tmp1))
+                    tmp1 = []
         
         NodesIDKept = np.sort(NodesIDKept)
         PointsKept = TR['Points'][NodesIDKept]
@@ -263,9 +269,10 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
         
         ElmtsKept = np.array(tmp_ElmtsKept)
         tmp_ElmtsKept = np.zeros(np.shape(ElmtsKept))
-        for pos, val in enumerate(NodesIDKept):
+        for pos, val in enumerate(NodesIDKept[::-1]):
             ind = np.where(ElmtsKept == val)
             tmp_ElmtsKept[ind] = pos
+        ElmtsKept = tmp_ElmtsKept
         
     TRout['Points'] = PointsKept
     TRout['ConnectivityList'] = ElmtsKept.astype(int)
@@ -611,7 +618,7 @@ def TriErodeMesh(Trin = {}, nbElmts = 0):
 
     if nbElmts > 1:
         # Get the neighbours of the identified elements, loop
-        for nb in range(nbElmts-1):
+        for nb in range(int(nbElmts-1)):
             # Identify the neighbours of the elements of the ElmtsOK subset
             ElmtNeighbours = []
             for nei in ElmtsInitial:
@@ -623,6 +630,8 @@ def TriErodeMesh(Trin = {}, nbElmts = 0):
 
         tmp_kept = list(range(len(Trin['ConnectivityList'])))
         ElemtsKept = list(set(tmp_kept) - set(ElmtsInitial))
+        if ElemtsKept == []:
+            ElemtsKept = ElmtsInitial
     else:
         ElemtsKept = ElmtsInitial
     
@@ -1290,14 +1299,15 @@ def PtsOnCondylesFemur(PtsCondyle_0, Pts_Epiphysis, CutAngle, InSetRatio, ellip_
             | ((np.dot(UEllipseCF, Uy) > 0) & (np.dot(UEllipseCF, Ux) > 0))
             
     # Points must be Outsided of the reduced ellipse and inside the Convexhull
-    I_kept = OUT_Elps & IN_CH & ~EXT_Posterior
+    # I_kept = OUT_Elps & IN_CH & ~EXT_Posterior
+    I_kept = OUT_Elps & IN_CH
             
     # outputs
     PtsCondyle_end = Pts_Epiphysis[I_kept]
     PtsKeptID = np.where(I_kept == True)[0]
 
     # plotting
-    debug_plots = 1
+    debug_plots = 0
     if debug_plots:
         
         fig = plt.figure()

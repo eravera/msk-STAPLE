@@ -51,7 +51,8 @@ from GIBOC_core import TriInertiaPpties, \
                                          fitCSA, \
                                           LargestEdgeConvHull, \
                                            PCRegionGrowing, \
-                                            lsplane
+                                            lsplane, \
+                                             TriErodeMesh
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -1061,7 +1062,21 @@ def GIBOC_femur_getCondyleMostProxPoint(EpiFem, CSs, PtsCondylesTrace, U):
     
     return PtTopCondyle
 
-
+# -----------------------------------------------------------------------------
+def GIBOC_femur_smoothCondyles(EpiFem, PtsFullCondyle, CoeffMorpho):
+    # -------------------------------------------------------------------------
+    Condyle = {}
+    Condyle2 = {}
+    fullCondyle = {}
+    
+    Condyle = TriReduceMesh(EpiFem, [], PtsFullCondyle)
+    # TriCloseMesh --------
+    tmp_TR = TriDilateMesh(EpiFem, Condyle, 5*CoeffMorpho) 
+    Condyle2 = TriErodeMesh(tmp_TR, 5*CoeffMorpho)
+    # End TriCloseMesh ----
+    fullCondyle = TriOpenMesh(EpiFem, Condyle2, 15*CoeffMorpho)
+    
+    return fullCondyle
 
 
 

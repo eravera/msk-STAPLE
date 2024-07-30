@@ -32,6 +32,7 @@ from sklearn import preprocessing
 from scipy.optimize import curve_fit
 from scipy.optimize import nnls
 from scipy.spatial import ConvexHull
+from scipy.spatial.transform import Rotation as R
 from ellipse import LsqEllipse
 
 from Public_functions import freeBoundary, \
@@ -987,8 +988,109 @@ def TriSliceObjAlongAxis(TriObj, Axis, step, cut_offset = 0.5, debug_plot = 0):
     maxAlt = Alt[maxAreaInd]
     
     return Areas, Alt, maxArea, maxAreaInd, maxAlt
-    
 
+# -----------------------------------------------------------------------------
+def TriVertexNormal(Tri = {}):
+    # -------------------------------------------------------------------------
+    # Compute the vertex normal of triangulation dict
+    # -------------------------------------------------------------------------
+    Tri_out = Tri.copy()
+    # Convert tiangulation dict to mesh object ------------------------------------
+    tmp_Tri = mesh.Mesh(np.zeros(Tri_out['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(Tri_out['ConnectivityList']):
+        for j in range(3):
+            tmp_Tri.vectors[i][j] = Tri_out['Points'][f[j],:]
+    # update normals
+    tmp_Tri.update_normals()
+    # -----------------------------------------------------------------------------
+    
+    # compute vertex normal
+    Tri_out['vertexNormal'] = np.zeros(np.shape(Tri_out['Points']))
+    UnitNormals = tmp_Tri.get_unit_normals()
+    for pos, point in enumerate(Tri_out['Points']):
+        triangles = np.where(Tri_out['ConnectivityList'] == pos)[0]
+        tmp = np.sum(UnitNormals[triangles,:], axis = 0)
+        Tri_out['vertexNormal'][pos] = tmp/ np.sqrt(tmp[0]**2 + tmp[1]**2 + tmp[2]**2)
+        
+    return Tri_out
+
+# -----------------------------------------------------------------------------
+def TriCurvature(TR = {}, usethird = False, Rot0 = np.identity(3)):
+    # -------------------------------------------------------------------------
+    # Calculate the principal curvature directions and values
+    # of a triangulated mesh. 
+    # 
+    # The function first rotates the data so the normal of the current
+    # vertex becomes [-1 0 0], so we can describe the data by XY instead of XYZ.
+    # Secondly it fits a least-squares quadratic patch to the local 
+    # neighborhood of a vertex "f(x,y) = ax^2 + by^2 + cxy + dx + ey + f". 
+    # Then the eigenvectors and eigenvalues of the hessian are used to
+    # calculate the principal, mean and gaussian curvature.
+    # 
+    # [Cmean,Cgaussian,Dir1,Dir2,Lambda1,Lambda2]=patchcurvature(FV,usethird)
+    # 
+    # inputs,
+    # TR : A dict triangulation mesh object (see Patch)
+    # usethird : Use third order neighbour vertices for the curvature fit, 
+    # making it smoother but less local. true/ false (default)
+    # 
+    # outputs,
+    # Cmean : Mean Curvature
+    # Cgaussian : Gaussian Curvature
+    # Dir1 : XYZ Direction of first Principal component
+    # Dir2 : XYZ Direction of second Principal component
+    # Lambda1 : value of first Principal component
+    # Lambda2 : value of second Principal component
+    # 
+    # % ---------------------------%
+    # Function is written by D.Kroon University of Twente (August 2011)  
+    # Last Update, 15-1-2014 D.Kroon at Focal.
+    # % ---------------------------%
+    # Slightly modified for triangulation inputs
+    # Last modification, 15-11-2017; JB Renault at AMU.
+    # % ---------------------------%
+    # Python version is written by EP Ravera
+    # Last modification, 30-07-2024; EP Ravera at CONICET
+    # % ---------------------------%
+    # -------------------------------------------------------------------------
+    
+    # Change Triangulation position for conditioning:
+    if TR:
+        TR['Points'] = np.dot(TR['Points'], Rot0)
+    
+    # Calculate vertices normals
+    TR = TriVertexNormal(TR)
+    N = TR['vertexNormal']
+    
+    # Calculate Rotation matrices for the normals
+    M = []
+    Minv = []
+    for vect in N:
+        r = R.from_rotvec(vect)
+        M.append(r.as_matrix())
+        Minv.append(np.linalg.inv(r.as_matrix()))
+    
+    # Get neighbours of all vertices
+    Ne = []
+    for vertex in range(len(TR['Points'])):
+        nei = np.where(TR['ConnectivityList'] == vertex)[0]
+        Ne.append(nei)
+    
+    # # Identify the neighbours of the elements of the ElmtsOK subset
+    # ElmtNeighbours = []
+    # for nei in ElmtsInitial:
+    #     ElmtNeighbours += list(list(np.where(TRsup['ConnectivityList'] == nei))[0])
+                
+    # # remove duplicated elements
+    # ElmtNeighbours = list(set(ElmtNeighbours))
+    
+    
+    return M, Minv, Ne
+    # return Cmean, Cgaussian, Dir1, Dir2, Lambda1, Lambda2
+    
+    
+    
+    
 
 
     

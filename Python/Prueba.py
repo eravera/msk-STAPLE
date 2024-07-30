@@ -33,7 +33,7 @@ from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHo
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
     TriErodeMesh, TriKeepLargestPatch, TriOpenMesh, TriPlanIntersect, quickPlotRefSystem, \
     TriSliceObjAlongAxis, fitCSA, LargestEdgeConvHull, PCRegionGrowing, lsplane, \
-    fit_ellipse, PtsOnCondylesFemur
+    fit_ellipse, PtsOnCondylesFemur, TriVertexNormal, TriCurvature
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -600,14 +600,6 @@ art_surface ='full_condyles'
 debug_plots = 0
 debug_prints = 1
 
-# Convert tiangulation dict to mesh object ------------------------------------
-tmp_EpiFem = mesh.Mesh(np.zeros(EpiFem['ConnectivityList'].shape[0], dtype=mesh.Mesh.dtype))
-for i, f in enumerate(EpiFem['ConnectivityList']):
-    for j in range(3):
-        tmp_EpiFem.vectors[i][j] = EpiFem['Points'][f[j],:]
-# update normals
-tmp_EpiFem.update_normals()
-# -----------------------------------------------------------------------------
 
 if art_surface == 'full_condyles':
     # Identify full articular surface of condyles (points)
@@ -763,13 +755,14 @@ MidPtPosterCondyleIt2 = np.reshape(MidPtPosterCondyleIt2,(1, MidPtPosterCondyleI
 X1 = np.sign(np.dot((MidPtEpiFem - MidPtPosterCondyleIt2), X1))*X1
 U =  preprocessing.normalize(-Z0 - 3*X1, axis=0)
 
-# compute vertex normal
-EpiFem['vertexNormal'] = np.zeros(np.shape(EpiFem['Points']))
-UnitNormals = tmp_EpiFem.get_unit_normals()
-for pos, point in enumerate(EpiFem['Points']):
-    triangles = np.where(EpiFem['ConnectivityList'] == pos)[0]
-    tmp = np.sum(UnitNormals[triangles,:], axis = 0)
-    EpiFem['vertexNormal'][pos] = tmp/ np.sqrt(tmp[0]**2 + tmp[1]**2 + tmp[2]**2)
+# # compute vertex normal
+EpiFem = TriVertexNormal(EpiFem)
+# EpiFem['vertexNormal'] = np.zeros(np.shape(EpiFem['Points']))
+# UnitNormals = tmp_EpiFem.get_unit_normals()
+# for pos, point in enumerate(EpiFem['Points']):
+#     triangles = np.where(EpiFem['ConnectivityList'] == pos)[0]
+#     tmp = np.sum(UnitNormals[triangles,:], axis = 0)
+#     EpiFem['vertexNormal'][pos] = tmp/ np.sqrt(tmp[0]**2 + tmp[1]**2 + tmp[2]**2)
 
 NodesOk = EpiFem['Points'][(np.dot(EpiFem['vertexNormal'], U) > 0.98)[:,0]]
 
@@ -824,7 +817,7 @@ elif art_surface == 'post_condyles':
     # End TriCloseMesh ----
     
     # Get Curvature
-    
+    M, Minv, Ne = TriCurvature(Condyle)
     
     
     

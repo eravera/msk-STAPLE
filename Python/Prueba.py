@@ -27,13 +27,14 @@ from Public_functions import load_mesh, freeBoundary, PolyArea, inpolygon
 
 from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_femur_fitSphere2FemHead, \
     Kai2014_femur_fitSphere2FemHead, GIBOC_isolate_epiphysis, GIBOC_femur_processEpiPhysis, \
-    GIBOC_femur_getCondyleMostProxPoint, GIBOC_femur_smoothCondyles
+    GIBOC_femur_getCondyleMostProxPoint, GIBOC_femur_smoothCondyles, GIBOC_femur_filterCondyleSurf
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
     TriErodeMesh, TriKeepLargestPatch, TriOpenMesh, TriPlanIntersect, quickPlotRefSystem, \
     TriSliceObjAlongAxis, fitCSA, LargestEdgeConvHull, PCRegionGrowing, lsplane, \
-    fit_ellipse, PtsOnCondylesFemur, TriVertexNormal, TriCurvature
+    fit_ellipse, PtsOnCondylesFemur, TriVertexNormal, TriCurvature, TriConnectedPatch, \
+    TriCloseMesh, TriDifferenceMesh
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -766,7 +767,7 @@ EpiFem = TriVertexNormal(EpiFem)
 
 NodesOk = EpiFem['Points'][(np.dot(EpiFem['vertexNormal'], U) > 0.98)[:,0]]
 
-U =  preprocessing.normalize(Z0 - 3*X1, axis=0)
+U = preprocessing.normalize(Z0 - 3*X1, axis=0)
 IMax = np.argmin(np.dot(NodesOk,U))
 PtNotch = NodesOk[IMax]
 PtNotch = np.reshape(PtNotch,(PtNotch.size,1))
@@ -796,33 +797,73 @@ elif art_surface == 'post_condyles':
     
     # Filter with curvature and normal orientation to keep only the post parts 
     # these are triangulations
-    # Condyle_end = GIBOC_femur_filterCondyleSurf(EpiFem, CSs, PtsCondyle, Pts_0_C, CoeffMorpho)
-    EpiFem = EpiFem.copy()
-    CSs = CSs.copy()
-    PtsCondyle = ArticularSurface_Lat.copy()
-    Pts_0_C = Pts_0_C1.copy()
-    CoeffMorpho = CoeffMorpho.copy()
-    # NOTE in the original toolbox lateral and medial condyles were processed 
-    # differently in the last step. I assume was a typo, given the entire code
-    # of this function was duplicated. I expect the difference to be small
-    # between the two versions.
+    DesiredArtSurfLat_Tri = GIBOC_femur_filterCondyleSurf(EpiFem, CSs, ArticularSurface_Lat, Pts_0_C1, CoeffMorpho)
+    DesiredArtSurfMed_Tri = GIBOC_femur_filterCondyleSurf(EpiFem, CSs, ArticularSurface_Med, Pts_0_C2, CoeffMorpho)
+    # # Condyle_end = GIBOC_femur_filterCondyleSurf(EpiFem, CSs, PtsCondyle, Pts_0_C, CoeffMorpho)
+    # EpiFem = EpiFem.copy()
+    # CSs = CSs.copy()
+    # PtsCondyle = ArticularSurface_Lat.copy()
+    # Pts_0_C = Pts_0_C1.copy()
+    # CoeffMorpho = CoeffMorpho.copy()
+    # # NOTE in the original toolbox lateral and medial condyles were processed 
+    # # differently in the last step. I assume was a typo, given the entire code
+    # # of this function was duplicated. I expect the difference to be small
+    # # between the two versions.
     
-    Y1 = CSs['Y1']
+    # Y1 = CSs['Y1']
     
-    Center, _, _ = sphere_fit(PtsCondyle)
-    Condyle = TriReduceMesh(EpiFem, [], PtsCondyle)
-    # TriCloseMesh --------
-    tmp_TR = TriDilateMesh(EpiFem, Condyle, 4*CoeffMorpho) 
-    Condyle = TriErodeMesh(tmp_TR, 4*CoeffMorpho)
-    # End TriCloseMesh ----
+    # Center, _, _ = sphere_fit(PtsCondyle)
+    # Condyle = TriReduceMesh(EpiFem, [], PtsCondyle)
+    # # TriCloseMesh --------
+    # tmp_TR = TriDilateMesh(EpiFem, Condyle, 4*CoeffMorpho) 
+    # Condyle = TriErodeMesh(tmp_TR, 4*CoeffMorpho)
+    # # End TriCloseMesh ----
     
-    # Get Curvature
-    M, Minv, Ne = TriCurvature(Condyle)
+    # # Get Curvature
+    # Cmean, Cgaussian, _, _, _, _ = TriCurvature(Condyle, False)
+    
+    # # Compute a Curvtr norm
+    # Curvtr = np.sqrt(4*(Cmean)**2 - 2*Cgaussian)
+    
+    # # Calculate the "probability" of a vertex to be on an edge, depends on :
+    # # - Difference in normal orientation from fitted cylinder
+    # # - Curvature Intensity
+    # # - Orientation relative to Distal Proximal axis
+    # CylPts = Condyle['Points'] - Center
+    # Ui = CylPts - np.dot((np.dot(CylPts,Y1)), Y1.T)
+    # Ui = preprocessing.normalize(Ui, axis=1)
+    
+    # # Calculate vertices normals
+    # Condyle = TriVertexNormal(Condyle)
+    # AlphaAngle = np.abs(90 - (np.arccos(np.sum(Condyle['vertexNormal']*Ui, axis=1)))*180/np.pi)
+    # GammaAngle = (np.arccos(np.dot(Condyle['vertexNormal'], CSs['Z0'])[:,0]))*180/np.pi
+    
+    # # Sigmoids functions to compute probability of vertex to be on an edge
+    # Prob_Edge_Angle = 1/(1 + np.exp((AlphaAngle-50)/10))
+    # Prob_Edge_Angle /= np.max(Prob_Edge_Angle)
+    
+    # Prob_Edge_Curv = 1/(1 + np.exp(-((Curvtr-0.25)/0.05)))
+    # Prob_Edge_Curv /= np.max(Prob_Edge_Curv)
+    
+    # Prob_FaceUp = 1/(1 + np.exp((GammaAngle-45)/15))
+    # Prob_FaceUp /= np.max(Prob_FaceUp)
+    
+    # Prob_Edge = 0.6*np.sqrt(Prob_Edge_Angle*Prob_Edge_Curv) + \
+    #     0.05*Prob_Edge_Curv + 0.15*Prob_Edge_Angle + 0.2*Prob_FaceUp
+    
+    # Condyle_edges = TriReduceMesh(Condyle, [], list(np.where(Prob_Edge_Curv*Prob_Edge_Angle > 0.5)[0]))
+    # Condyle_end = TriReduceMesh(Condyle, [], list(np.where(Prob_Edge < 0.2)[0]))
+    # Condyle_end = TriConnectedPatch(Condyle_end, Pts_0_C)
+    # Condyle_end = TriCloseMesh(EpiFem, Condyle_end, 10*CoeffMorpho)
+    
+    # # medial condyle (in original script)
+    # Condyle_end = TriKeepLargestPatch(Condyle_end)
+    # Condyle_end = TriDifferenceMesh(Condyle_end , Condyle_edges)
     
     
     
-
-        
+    
+    
     
     
 # elif art_surface == 'pat_groove':
@@ -846,14 +887,17 @@ elif art_surface == 'post_condyles':
 
 #%% PLOTS ....................
 
-# fig = plt.figure()
-# ax = fig.add_subplot(projection = '3d')
+fig = plt.figure()
+ax = fig.add_subplot(projection = '3d')
 # # # # # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 # # # # ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
 # # # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 
-# ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'red')
-# ax.plot_trisurf(DesiredArtSurfLat_Tri['Points'][:,0], DesiredArtSurfLat_Tri['Points'][:,1], DesiredArtSurfLat_Tri['Points'][:,2], triangles = DesiredArtSurfLat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+# ax.plot_trisurf(Condyle['Points'][:,0], Condyle['Points'][:,1], Condyle['Points'][:,2], triangles = Condyle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+# ax.plot_trisurf(Condyle_edges['Points'][:,0], Condyle_edges['Points'][:,1], Condyle_edges['Points'][:,2], triangles = Condyle_edges['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'red')
+# ax.plot_trisurf(Condyle_end['Points'][:,0], Condyle_end['Points'][:,1], Condyle_end['Points'][:,2], triangles = Condyle_end['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'red')
+ax.plot_trisurf(DesiredArtSurfLat_Tri['Points'][:,0], DesiredArtSurfLat_Tri['Points'][:,1], DesiredArtSurfLat_Tri['Points'][:,2], triangles = DesiredArtSurfLat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
 # ax.plot_trisurf(DesiredArtSurfMed_Tri['Points'][:,0], DesiredArtSurfMed_Tri['Points'][:,1], DesiredArtSurfMed_Tri['Points'][:,2], triangles = DesiredArtSurfMed_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
 # # ax.plot_trisurf(KConvHull['Points'][:,0], KConvHull['Points'][:,1], KConvHull['Points'][:,2], triangles = KConvHull['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'green')
 

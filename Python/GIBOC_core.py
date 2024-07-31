@@ -226,6 +226,9 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
     # binary indicating kept Elements
     # NodesKept: ID of kept nodes of corresponding to TR connectibity list OR 
     # list of nodes coordinates
+    if ElmtsKept == [] and NodesKept == []:
+        TRout = TR
+        return TRout
     
     TRout = {}
     NodesIDKept = []
@@ -1076,21 +1079,164 @@ def TriCurvature(TR = {}, usethird = False, Rot0 = np.identity(3)):
         nei = np.where(TR['ConnectivityList'] == vertex)[0]
         Ne.append(nei)
     
-    # # Identify the neighbours of the elements of the ElmtsOK subset
-    # ElmtNeighbours = []
-    # for nei in ElmtsInitial:
-    #     ElmtNeighbours += list(list(np.where(TRsup['ConnectivityList'] == nei))[0])
+    Lambda1 = []
+    Lambda2 = []
+    Dir1 = []
+    Dir2 = []
+    for i, nei in enumerate(Ne):
+        Nce = []
+        SRNei = []
+        TRNei = []
+        # First Ring Neighbours
+        FRNei = list(nei)
+        
+        if usethird == False:
+            # Get first and second ring neighbours
+            for neiID in nei:
+                # Second Ring Neighbours
+                sr = np.where(TR['ConnectivityList'] == neiID)[0]
+                if sr != []:
+                    SRNei.append(sr[0])
+        else:
+            # Get first, second and third ring neighbours
+            for neiID in nei:
+                # Second Ring Neighbours
+                SRNei.append(np.where(TR['ConnectivityList'] == neiID)[0][0])
+            for neiID in SRNei:
+                # Second Ring Neighbours
+                TRNei.append(np.where(TR['ConnectivityList'] == neiID)[0][0])
+        
+        Nce = list(set(FRNei + SRNei + TRNei))
+        Ve = TR['Points'][Nce]
+        
+        # Rotate to make normal [-1 0 0]
+        We = np.dot(Ve, Minv[i])
+        
+        f = We[:,0]
+        x = We[:,1]
+        y = We[:,2]
+        
+        # Fit patch
+        # f(x,y) = ax^2 + by^2 + cxy + dx + ey + f
+        FM = np.array([x**2, y**2, x*y, x, y, np.ones(len(x))]).T
+        abcdef = np.linalg.lstsq(FM, f, rcond=None)[0]
+        a = abcdef[0]
+        b = abcdef[1]
+        c = abcdef[2]
+        
+        Dxx = 2*a
+        Dxy = c 
+        Dyy = 2*b
                 
-    # # remove duplicated elements
-    # ElmtNeighbours = list(set(ElmtNeighbours))
+        hessian = np.array([[Dxx, Dxy],[Dxy,Dyy]])
+        eigenvalues, eigenvectors = np.linalg.eig(hessian)
+                
+        if np.abs(eigenvalues[1]) < np.abs(eigenvalues[0]):
+            Lambda1.append(eigenvalues[1])
+            Lambda2.append(eigenvalues[0])
+            I1 = eigenvectors[1]
+            I2 = eigenvectors[0]
+        else:
+            Lambda1.append(eigenvalues[0])
+            Lambda2.append(eigenvalues[1])
+            I1 = eigenvectors[0]
+            I2 = eigenvectors[1]
+        
+        dir1 = np.dot(np.array([0, I1[0], I1[1]]), M[i])
+        dir2 = np.dot(np.array([0, I2[0], I2[1]]), M[i])
+                
+        tmp1 = dir1/(np.sqrt(dir1[0]**2 + dir1[1]**2 + dir1[2]**2))
+        tmp2 = dir2/(np.sqrt(dir2[0]**2 + dir2[1]**2 + dir2[2]**2))
+        Dir1.append(tmp1)
+        Dir2.append(tmp2)
+        
+    Cmean = (np.array(Lambda1) + np.array(Lambda2))/2
+    Cgaussian = np.array(Lambda1)*np.array(Lambda2)
     
+    return Cmean, Cgaussian, Dir1, Dir2, Lambda1, Lambda2
     
-    return M, Minv, Ne
-    # return Cmean, Cgaussian, Dir1, Dir2, Lambda1, Lambda2
+# -----------------------------------------------------------------------------
+def TriConnectedPatch(TR, PtsInitial):
+    # -------------------------------------------------------------------------
+    # Find the connected mesh (elements sharing at least an edge) starting 
+    # from a given point (not necessarily lying on the mesh)
+    # -------------------------------------------------------------------------
+    # nearestNeighbor
+    # Get the index of points
+    point_tree = spatial.cKDTree(TR['Points'])
+    # This finds the index of all points within the kd-tree for nearest neighbors.
+    NodeInitial = point_tree.query(PtsInitial, k=1)[1]
+    NodeInitial = np.unique(NodeInitial)
     
+    ElmtsInitial = np.unique(TR['ConnectivityList'][NodeInitial].reshape(-1, 1))
+    ElmtsConnected = list(ElmtsInitial)
     
+    test = False
+    while test == False:
+        PreviousLength = len(ElmtsConnected)
+        # Identify the neighbours of the elements of the ElmtsOK subset
+        ElmtNeighbours = []
+        for nei in ElmtsInitial:
+            ElmtNeighbours += list(list(np.where(TR['ConnectivityList'] == nei))[0])
+                    
+        # remove duplicated elements
+        ElmtNeighbours = list(set(ElmtNeighbours))
+        ElmtsInitial = TR['ConnectivityList'][ElmtNeighbours].reshape(-1, 1)
     
+        # Add the new neighbours to the list of elements ElmtsOK
+        ElmtsConnected += list(ElmtsInitial[:,0])
+        # remove duplicated elements
+        ElmtsConnected = list(set(ElmtsConnected))
+        
+        if len(ElmtsConnected) == PreviousLength:
+            test = True
     
+    TRout = TriReduceMesh(TR, ElmtsConnected) 
+    return TRout
+
+# -----------------------------------------------------------------------------
+def TriCloseMesh(TRsup ,TRin , nbElmts):
+    # -------------------------------------------------------------------------
+    # 
+    # -------------------------------------------------------------------------
+    TR = TriDilateMesh(TRsup, TRin, nbElmts)
+    TRout = TriErodeMesh(TR, nbElmts)
+    
+    return TRout
+    
+# -----------------------------------------------------------------------------
+def TriDifferenceMesh(TR1, TR2):
+    # -------------------------------------------------------------------------
+    # Boolean difference between original mesh TR1 and another mesh TR2
+    # /!\ delete all elements in TR1 that contains a node in TR2
+    # -------------------------------------------------------------------------
+    TRout = {}
+    # returns the rows of the intersection in the same order as they appear in
+    ia = [i for i, v in enumerate(TR1['Points']) for u in TR2['Points'] if np.all(v == u)]
+    
+    if ia == []:
+        print('No intersection found, the tolerance distance has been set to 1E-5')
+        ia = [i for i, v in enumerate(TR1['Points']) for u in TR2['Points'] if np.linalg.norm(v-u) <= 1e-5]
+    
+    if ia != []:
+        Elmts2Delete = []
+        for vertex in ia:
+            nei = np.where(TR1['ConnectivityList'] == vertex)[0]
+            Elmts2Delete.append(nei)
+        
+        # remove duplicated elements
+        Elmts2Delete = list(set(Elmts2Delete))
+        
+        Elmts2Keep = np.ones(len(TR1['ConnecticityList']), dtype='bool')
+        Elmts2Keep[Elmts2Delete] = False
+        Elmts2KeepID = np.where(Elmts2Keep)[0]
+        
+        TRout = TriReduceMesh(TR1, Elmts2KeepID)
+    else:
+        TRout = TR1
+    
+    return TRout
+
 
 
     

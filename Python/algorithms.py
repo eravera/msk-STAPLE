@@ -1130,6 +1130,7 @@ def GIBOC_femur_filterCondyleSurf(EpiFem, CSs, PtsCondyle, Pts_0_C, CoeffMorpho)
     
     Condyle_edges = TriReduceMesh(Condyle, [], list(np.where(Prob_Edge_Curv*Prob_Edge_Angle > 0.5)[0]))
     Condyle_end = TriReduceMesh(Condyle, [], list(np.where(Prob_Edge < 0.2)[0]))
+    # Condyle_end = Condyle
     Condyle_end = TriConnectedPatch(Condyle_end, Pts_0_C)
     Condyle_end = TriCloseMesh(EpiFem, Condyle_end, 10*CoeffMorpho)
     

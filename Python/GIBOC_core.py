@@ -277,9 +277,12 @@ def TriReduceMesh(TR = {}, ElmtsKept = [], NodesKept = []):
             ind = np.where(ElmtsKept == val)
             tmp_ElmtsKept[ind] = pos
         ElmtsKept = tmp_ElmtsKept
-        
-    TRout['Points'] = PointsKept
-    TRout['ConnectivityList'] = ElmtsKept.astype(int)
+    
+    if len(PointsKept) == 0 or len(ElmtsKept) == 0:
+        TRout = TR
+    else:
+        TRout['Points'] = PointsKept
+        TRout['ConnectivityList'] = ElmtsKept.astype(int)
             
     return TRout
 
@@ -1085,6 +1088,7 @@ def TriCurvature(TR = {}, usethird = False, Rot0 = np.identity(3)):
     Dir2 = []
     for i, nei in enumerate(Ne):
         Nce = []
+        tmp_Nce = []
         SRNei = []
         TRNei = []
         # First Ring Neighbours
@@ -1106,7 +1110,9 @@ def TriCurvature(TR = {}, usethird = False, Rot0 = np.identity(3)):
                 # Second Ring Neighbours
                 TRNei.append(np.where(TR['ConnectivityList'] == neiID)[0][0])
         
-        Nce = list(set(FRNei + SRNei + TRNei))
+        # Nce = list(set(FRNei + SRNei + TRNei))
+        tmp_Nce = FRNei + SRNei + TRNei
+        Nce = np.unique(TR['ConnectivityList'][tmp_Nce].reshape(-1,1)[:,0])
         Ve = TR['Points'][Nce]
         
         # Rotate to make normal [-1 0 0]

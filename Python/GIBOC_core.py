@@ -559,6 +559,8 @@ def TriKeepLargestPatch(Tr = {}):
                 patch += [p]
                 j = 0
                 i += 1
+        if border == [] and patch != []:
+            Patch[str(i)] = patch
             
     Area_patch = {}
     for key in Patch:
@@ -600,7 +602,7 @@ def TriKeepLargestPatch(Tr = {}):
         TRout['ConnectivityList'][pos] = np.array([ind0, ind1, ind2])
         
     TRout['ConnectivityList'] = TRout['ConnectivityList'].astype(np.int64)
-    
+        
     return TRout
 
 # -----------------------------------------------------------------------------
@@ -1174,7 +1176,12 @@ def TriConnectedPatch(TR, PtsInitial):
     NodeInitial = point_tree.query(PtsInitial, k=1)[1]
     NodeInitial = np.unique(NodeInitial)
     
-    ElmtsInitial = np.unique(TR['ConnectivityList'][NodeInitial].reshape(-1, 1))
+    tmp_ElIn = [np.where(TR['ConnectivityList'] == ni)[0] for ni in NodeInitial]
+    ElIn = []
+    for values in tmp_ElIn:
+        ElIn += list(values)
+    # ElmtsInitial = np.unique(TR['ConnectivityList'][NodeInitial].reshape(-1, 1))
+    ElmtsInitial = np.unique(TR['ConnectivityList'][ElIn].reshape(-1, 1))
     ElmtsConnected = list(ElmtsInitial)
     
     test = False
@@ -1197,6 +1204,12 @@ def TriConnectedPatch(TR, PtsInitial):
         if len(ElmtsConnected) == PreviousLength:
             test = True
     
+    # identify ID from TR['ConnectivityList'] where ElmtsConnected are included
+    tmp_ElConn = [np.where(TR['ConnectivityList'] == ni)[0] for ni in ElmtsConnected]
+    ElConn = []
+    for values in tmp_ElConn:
+        ElConn += list(values)
+    ElmtsConnected = list(set(ElConn))
     TRout = TriReduceMesh(TR, ElmtsConnected) 
     return TRout
 
@@ -1228,12 +1241,13 @@ def TriDifferenceMesh(TR1, TR2):
         Elmts2Delete = []
         for vertex in ia:
             nei = np.where(TR1['ConnectivityList'] == vertex)[0]
-            Elmts2Delete.append(nei)
+            # Elmts2Delete.append(nei)
+            Elmts2Delete += list(nei)
         
         # remove duplicated elements
         Elmts2Delete = list(set(Elmts2Delete))
         
-        Elmts2Keep = np.ones(len(TR1['ConnecticityList']), dtype='bool')
+        Elmts2Keep = np.ones(len(TR1['ConnectivityList']), dtype='bool')
         Elmts2Keep[Elmts2Delete] = False
         Elmts2KeepID = np.where(Elmts2Keep)[0]
         

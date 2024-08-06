@@ -1674,8 +1674,103 @@ def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_pl
     
     return 0
     
+# -----------------------------------------------------------------------------
+def CS_femur_SpheresOnCondyles(postCondyle_Lat, postCondyle_Med, CS, side, debug_plots = 0, in_mm = 1):
+    # -------------------------------------------------------------------------
+    CS = CS.copy()
+    JCS = {}
     
+    if in_mm == 1:
+        dim_fact = 0.001
+    else:
+        dim_fact = 1
     
+    # get sign correspondent to body side
+    side_sign, side_low = bodySide2Sign(side)
+    
+    # joint names
+    knee_name = 'knee_' + side_low
+    hip_name  = 'hip_' + side_low
+    
+    # fit spheres to the two posterior condyles
+    center_lat, radius_lat, e1 = sphere_fit(postCondyle_Lat['Points']) # lat
+    center_med, radius_med, e2 = sphere_fit(postCondyle_Med['Points']) # med
+    center_lat = center_lat.T
+    center_med = center_med.T
+    
+    # knee center in the middle
+    KneeCenter = 0.5*(center_lat + center_med)
+    
+    # store axes in structure
+    CS['sphere_center_lat'] = center_lat
+    CS['sphere_radius_lat'] = radius_lat
+    CS['sphere_center_med'] = center_med
+    CS['sphere_radius_med'] = radius_med
+    
+    # common axes: X is orthog to Y and Z, which are not mutually perpend
+    Z = preprocessing.normalize((center_lat - center_med)*side_sign, axis=0)
+    Z = np.reshape(Z,(Z.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    Y = preprocessing.normalize(CS['CenterFH_Renault'] - KneeCenter, axis=0)
+    Y = np.reshape(Y,(Y.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    X = np.cross(Y.T, Z.T).T
+    # X = np.reshape(X,(X.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    
+    # define hip joint
+    Zml_hip = np.cross(X.T, Y.T).T
+    # Zml_hip = np.reshape(Zml_hip,(Zml_hip.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    JCS[hip_name] = {}
+    JCS[hip_name]['V'] = np.zeros((3,3))
+    JCS[hip_name]['V'][:,0] = X[:,0]
+    JCS[hip_name]['V'][:,1] = Y[:,0]
+    JCS[hip_name]['V'][:,2] = Zml_hip[:,0]
+    JCS[hip_name]['child_location'] = CS['CenterFH_Renault']*dim_fact
+    JCS[hip_name]['child_orientation'] = computeXYZAngleSeq(JCS[hip_name]['V'])
+    JCS[hip_name]['child_Origin'] = CS['CenterFH_Renault']
+    
+    # define knee joint
+    Y_knee = np.cross(Z.T, X.T).T
+    # Y_knee = np.reshape(Y_knee,(Y_knee.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    JCS[knee_name] = {}
+    JCS[knee_name]['V'] = np.zeros((3,3))
+    JCS[knee_name]['V'][:,0] = X[:,0]
+    JCS[knee_name]['V'][:,1] = Y_knee[:,0]
+    JCS[knee_name]['V'][:,2] = Z[:,0]
+    JCS[knee_name]['child_location'] = KneeCenter*dim_fact
+    JCS[knee_name]['child_orientation'] = computeXYZAngleSeq(JCS[knee_name]['V'])
+    JCS[knee_name]['child_Origin'] = KneeCenter
+    
+    # -------------------------
+    if debug_plots:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection = '3d')
+        
+        ax.plot_trisurf(postCondyle_Lat['Points'][:,0], postCondyle_Lat['Points'][:,1], postCondyle_Lat['Points'][:,2], triangles = postCondyle_Lat['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+        ax.plot_trisurf(postCondyle_Med['Points'][:,0], postCondyle_Med['Points'][:,1], postCondyle_Med['Points'][:,2], triangles = postCondyle_Med['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'red')
+        
+        # Plot spheres
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = radius_lat*np.sin(phi)*np.cos(theta)
+        y = radius_lat*np.sin(phi)*np.sin(theta)
+        z = radius_lat*np.cos(phi)
+
+        ax.plot_surface(x + center_lat[0], y + center_lat[1], z + center_lat[2], \
+                        color = 'blue', alpha=0.7)
+        
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = radius_med*np.sin(phi)*np.cos(theta)
+        y = radius_med*np.sin(phi)*np.sin(theta)
+        z = radius_med*np.cos(phi)
+
+        ax.plot_surface(x + center_med[0], y + center_med[1], z + center_med[2], \
+                        color = 'red', alpha=0.7)
+            
+        ax.set_box_aspect([1,1,1])
+    # -------------------------   
+    
+    return CS, JCS
+
     
     
     

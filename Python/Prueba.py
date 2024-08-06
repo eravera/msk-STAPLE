@@ -28,7 +28,7 @@ from Public_functions import load_mesh, freeBoundary, PolyArea, inpolygon
 from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_femur_fitSphere2FemHead, \
     Kai2014_femur_fitSphere2FemHead, GIBOC_isolate_epiphysis, GIBOC_femur_processEpiPhysis, \
     GIBOC_femur_getCondyleMostProxPoint, GIBOC_femur_smoothCondyles, GIBOC_femur_filterCondyleSurf, \
-    GIBOC_femur_ArticSurf
+    GIBOC_femur_ArticSurf, CS_femur_SpheresOnCondyles
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
@@ -625,14 +625,19 @@ ArtSurf['condyles_' + side_raw] = TriUnite(fullCondyle_Med_Tri, fullCondyle_Lat_
 # how to compute the joint axes
 print('Fitting femoral distal articular surfaces using ' + fit_method + ' method...')
 
-
-
-
-
-
-
-
-
+fit_method = 'spheres'
+if fit_method == 'spheres':
+    # Fit two spheres on articular surfaces of posterior condyles
+    AuxCSInfo, JCS = CS_femur_SpheresOnCondyles(postCondyle_Lat_Tri, postCondyle_Med_Tri, AuxCSInfo, side_raw)
+# elif fit_method == 'cylinder':
+#     # Fit the posterior condyles with a cylinder
+#     # AuxCSInfo, JCS = CS_femur_CylinderOnCondyles(postCondyle_Lat_Tri, postCondyle_Med_Tri, AuxCSInfo, side_raw)
+# elif fit_method == 'ellipsoids':
+#     # Fit the entire condyles with an ellipsoid
+#     # AuxCSInfo, JCS = CS_femur_EllipsoidsOnCondyles(fullCondyle_Lat_Tri, fullCondyle_Med_Tri, AuxCSInfo, side_raw)
+# else:
+#     logg.error('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
+#     print('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
 
 
 
@@ -668,8 +673,8 @@ print('Fitting femoral distal articular surfaces using ' + fit_method + ' method
 # # ax.plot_trisurf(Condyle_edges['Points'][:,0], Condyle_edges['Points'][:,1], Condyle_edges['Points'][:,2], triangles = Condyle_edges['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'red')
 # # ax.plot_trisurf(Condyle_end['Points'][:,0], Condyle_end['Points'][:,1], Condyle_end['Points'][:,2], triangles = Condyle_end['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
 # ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'red')
-# ax.plot_trisurf(DesiredArtSurfLat_Tri['Points'][:,0], DesiredArtSurfLat_Tri['Points'][:,1], DesiredArtSurfLat_Tri['Points'][:,2], triangles = DesiredArtSurfLat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
-# ax.plot_trisurf(DesiredArtSurfMed_Tri['Points'][:,0], DesiredArtSurfMed_Tri['Points'][:,1], DesiredArtSurfMed_Tri['Points'][:,2], triangles = DesiredArtSurfMed_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'blue')
+# ax.plot_trisurf(fullCondyle_Lat_Tri['Points'][:,0], fullCondyle_Lat_Tri['Points'][:,1], fullCondyle_Lat_Tri['Points'][:,2], triangles = fullCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+# ax.plot_trisurf(fullCondyle_Med_Tri['Points'][:,0], fullCondyle_Med_Tri['Points'][:,1], fullCondyle_Med_Tri['Points'][:,2], triangles = fullCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'blue')
 # # # ax.plot_trisurf(KConvHull['Points'][:,0], KConvHull['Points'][:,1], KConvHull['Points'][:,2], triangles = KConvHull['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'green')
 
     

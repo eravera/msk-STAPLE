@@ -36,6 +36,8 @@ from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHo
     TriSliceObjAlongAxis, fitCSA, LargestEdgeConvHull, PCRegionGrowing, lsplane, \
     fit_ellipse, PtsOnCondylesFemur, TriVertexNormal, TriCurvature, TriConnectedPatch, \
     TriCloseMesh, TriDifferenceMesh
+    
+from geometry import bodySide2Sign
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -640,10 +642,108 @@ if fit_method == 'spheres':
 #     print('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
 
 
+# -----------------------------
+
+Condyle_Lat = postCondyle_Lat_Tri.copy() 
+Condyle_Med = postCondyle_Med_Tri.copy() 
+CS = AuxCSInfo.copy()
+side = side_raw
+debug_plots = 0
+in_mm = 1
+
+
+# get sign correspondent to body side
+side_sign, side_low = bodySide2Sign(side)
+
+# joint names
+knee_name = 'knee_' + side_low
+hip_name  = 'hip_' + side_low
+
+# get all points of triangulations
+PtsCondyle = np.concatenate((Condyle_Lat['Points'], Condyle_Med['Points']))
+
+# initialise the least square search for cylinder with the sphere fitting
+# note that this function provides an already adjusted direction of the M-L
+# axis that will be used for aligning the cylinder axis below.
+CSSph, JCSSph = CS_femur_SpheresOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots, in_mm)
+
+# initialise variables
+Axe0 = CSSph['sphere_center_lat'] - CSSph['sphere_center_med']
+Center0 = 0.5*(CSSph['sphere_center_lat'] + CSSph['sphere_center_med'])
+Radius0 = 0.5*(CSSph['sphere_radius_lat'] + CSSph['sphere_radius_med'])
+Z_dir = JCSSph[knee_name]['V'][:,2]
+
+t1 = Axe0 - Center0
+alpha = np.arctan2(t1[2],t1[0])
+beta = np.arctan2(t1[0],t1[2])
 
 
 
 
+# ----------------------------------------
+
+
+
+
+from scipy.optimize import leastsq
+
+
+def cylinderFitting(xyz,p,th):
+
+    """
+    This is a fitting for a vertical cylinder fitting
+    Reference:
+    http://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XXXIX-B5/169/2012/isprsarchives-XXXIX-B5-169-2012.pdf
+
+    xyz is a matrix contain at least 5 rows, and each row stores x y z of a cylindrical surface
+    p is initial values of the parameter;
+    p[0] = Xc, x coordinate of the cylinder centre
+    P[1] = Yc, y coordinate of the cylinder centre
+    P[2] = alpha, rotation angle (radian) about the x-axis
+    P[3] = beta, rotation angle (radian) about the y-axis
+    P[4] = r, radius of the cylinder
+
+    th, threshold for the convergence of the least squares
+
+    """   
+    x = xyz[:,0]
+    y = xyz[:,1]
+    z = xyz[:,2]
+
+    fitfunc = lambda p, x, y, z: (- np.cos(p[3])*(p[0] - x) - z*np.cos(p[2])*np.sin(p[3]) - np.sin(p[2])*np.sin(p[3])*(p[1] - y))**2 + (z*np.sin(p[2]) - np.cos(p[2])*(p[1] - y))**2 #fit function
+    errfunc = lambda p, x, y, z: fitfunc(p, x, y, z) - p[4]**2 #error function 
+
+    est_p , success = leastsq(errfunc, p, args=(x, y, z), maxfev=1000)
+    
+    return est_p
+
+p = np.array([Center0[0][0],Center0[2][0],alpha[0],beta[0],Radius0])
+xyz = PtsCondyle
+
+est_p =  cylinderFitting(xyz,p,0.00001)
+
+
+
+
+
+# if __name__=="__main__":
+
+#     np.set_printoptions(suppress=True)    
+#     xyz = np.loadtxt('cylinder11.xyz')
+#     #print xyz
+#     print("Initial Parameters: ")
+#     p = np.array([-13.79,-8.45,0,0,0.3])
+#     print(p)
+#     print(" ")
+
+#     print("Performing Cylinder Fitting ... ")
+#     est_p =  cylinderFitting(xyz,p,0.00001)
+#     print("Fitting Done!")
+#     print(" ")
+
+
+#     print("Estimated Parameters: ")
+#     print(est_p)
 
 
 
@@ -663,19 +763,19 @@ if fit_method == 'spheres':
 
 #%% PLOTS ....................
 
-# fig = plt.figure()
-# ax = fig.add_subplot(projection = '3d')
-# # # # # # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
-# # # # # ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
-# # # # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+fig = plt.figure()
+ax = fig.add_subplot(projection = '3d')
+# # # # # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# # # # ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+# # # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 
-# # ax.plot_trisurf(Condyle['Points'][:,0], Condyle['Points'][:,1], Condyle['Points'][:,2], triangles = Condyle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
-# # ax.plot_trisurf(Condyle_edges['Points'][:,0], Condyle_edges['Points'][:,1], Condyle_edges['Points'][:,2], triangles = Condyle_edges['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'red')
-# # ax.plot_trisurf(Condyle_end['Points'][:,0], Condyle_end['Points'][:,1], Condyle_end['Points'][:,2], triangles = Condyle_end['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
-# ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'red')
-# ax.plot_trisurf(fullCondyle_Lat_Tri['Points'][:,0], fullCondyle_Lat_Tri['Points'][:,1], fullCondyle_Lat_Tri['Points'][:,2], triangles = fullCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
-# ax.plot_trisurf(fullCondyle_Med_Tri['Points'][:,0], fullCondyle_Med_Tri['Points'][:,1], fullCondyle_Med_Tri['Points'][:,2], triangles = fullCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'blue')
-# # # ax.plot_trisurf(KConvHull['Points'][:,0], KConvHull['Points'][:,1], KConvHull['Points'][:,2], triangles = KConvHull['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'green')
+# ax.plot_trisurf(Condyle['Points'][:,0], Condyle['Points'][:,1], Condyle['Points'][:,2], triangles = Condyle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+# ax.plot_trisurf(Condyle_edges['Points'][:,0], Condyle_edges['Points'][:,1], Condyle_edges['Points'][:,2], triangles = Condyle_edges['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'red')
+# ax.plot_trisurf(Condyle_end['Points'][:,0], Condyle_end['Points'][:,1], Condyle_end['Points'][:,2], triangles = Condyle_end['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'red')
+ax.plot_trisurf(fullCondyle_Lat_Tri['Points'][:,0], fullCondyle_Lat_Tri['Points'][:,1], fullCondyle_Lat_Tri['Points'][:,2], triangles = fullCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+ax.plot_trisurf(fullCondyle_Med_Tri['Points'][:,0], fullCondyle_Med_Tri['Points'][:,1], fullCondyle_Med_Tri['Points'][:,2], triangles = fullCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'blue')
+# # ax.plot_trisurf(KConvHull['Points'][:,0], KConvHull['Points'][:,1], KConvHull['Points'][:,2], triangles = KConvHull['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'green')
 
     
     

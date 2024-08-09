@@ -28,7 +28,8 @@ from sklearn import preprocessing
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
-from geometry import bodySide2Sign
+from geometry import bodySide2Sign, \
+                      landmarkBoneGeom
 
 from GIBOC_core import TriInertiaPpties, \
                         TriMesh2DProperties, \
@@ -58,7 +59,9 @@ from GIBOC_core import TriInertiaPpties, \
                                                 TriDifferenceMesh, \
                                                  TriVertexNormal, \
                                                   TriCloseMesh, \
-                                                   PtsOnCondylesFemur
+                                                   PtsOnCondylesFemur, \
+                                                    cylinderFitting, \
+                                                     plotCylinder
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -1529,7 +1532,7 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     return BCS, JCS, PelvisBL
 
 # -----------------------------------------------------------------------------
-def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_plots = 1, debug_plots = 0, in_mm = 1):
+def GIBOC_femur(femurTri, side_raw = 'r', fit_method = 'cylinder', result_plots = 1, debug_plots = 0, in_mm = 1):
     # Automatically define a reference system based on bone morphology by 
     # fitting analytical shapes to the articular surfaces. It is normally used 
     # within processTriGeomBoneSet.m in workflows to generate musculoskeletal 
@@ -1664,15 +1667,126 @@ def GIBOC_femur(femurTri, side_raw = 'right', fit_method = 'cylinder', result_pl
     
     # how to compute the joint axes
     print('Fitting femoral distal articular surfaces using ' + fit_method + ' method...')
-    
-    
-    
-    
-    
-    
-    
-    
-    return 0
+
+    if fit_method == 'spheres':
+        # Fit two spheres on articular surfaces of posterior condyles
+        AuxCSInfo, JCS = CS_femur_SpheresOnCondyles(postCondyle_Lat_Tri, postCondyle_Med_Tri, AuxCSInfo, side_raw)
+    elif fit_method == 'cylinder':
+        # Fit the posterior condyles with a cylinder
+        AuxCSInfo, JCS = CS_femur_CylinderOnCondyles(postCondyle_Lat_Tri, postCondyle_Med_Tri, AuxCSInfo, side_raw)
+    # elif fit_method == 'ellipsoids':
+        # Fit the entire condyles with an ellipsoid
+        # AuxCSInfo, JCS = CS_femur_EllipsoidsOnCondyles(fullCondyle_Lat_Tri, fullCondyle_Med_Tri, AuxCSInfo, side_raw)
+    else:
+        # logg.error('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
+        print('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
+
+    # joint names (extracted from JCS defined in the fit_methods)
+    joint_name_list = list(JCS.keys())
+    hip_name = [name for name in joint_name_list if 'hip' in name][0]
+    knee_name = [name for name in joint_name_list if 'knee' in name][0]
+    side_low = hip_name[-1]
+
+    # define segment ref system
+    BCS = {}
+    BCS['CenterVol'] = CenterVol
+    BCS['Origin'] = AuxCSInfo['CenterFH_Renault']
+    BCS['InertiaMatrix'] = InertiaMatrix
+    BCS['V'] = JCS[hip_name]['V'] # needed for plotting of femurTri
+
+    # landmark bone according to CS (only Origin and CS.V are used)
+    FemurBL = landmarkBoneGeom(femurTri, BCS, 'femur_' + side_low)
+
+    # result plot
+    label_switch = 1
+
+    if result_plots:
+        fig = plt.figure()
+        fig.suptitle('GIBOC | bone: femur | fit: ' + fit_method + ' | side: ' + side_low)
+        alpha = 0.5
+        
+        # First column
+        # plot full femur and final JCSs
+        ax1 = fig.add_subplot(121, projection = '3d')
+        
+        plotTriangLight(femurTri, BCS, ax1)
+        quickPlotRefSystem(JCS[hip_name], ax1)
+        quickPlotRefSystem(JCS[knee_name], ax1)
+        # add articular surfaces
+        if fit_method == 'ellipsoids':
+            ax1.plot_trisurf(fullCondyle_Lat_Tri['Points'][:,0], fullCondyle_Lat_Tri['Points'][:,1], fullCondyle_Lat_Tri['Points'][:,2], triangles = fullCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'blue')
+            ax1.plot_trisurf(fullCondyle_Med_Tri['Points'][:,0], fullCondyle_Med_Tri['Points'][:,1], fullCondyle_Med_Tri['Points'][:,2], triangles = fullCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'red')
+        else:
+            ax1.plot_trisurf(postCondyle_Lat_Tri['Points'][:,0], postCondyle_Lat_Tri['Points'][:,1], postCondyle_Lat_Tri['Points'][:,2], triangles = postCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'blue')
+            ax1.plot_trisurf(postCondyle_Med_Tri['Points'][:,0], postCondyle_Med_Tri['Points'][:,1], postCondyle_Med_Tri['Points'][:,2], triangles = postCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'red')
+        # Remove grid
+        ax1.grid(False)
+        ax1.set_box_aspect([1,3,1])
+        
+        # add markers and labels
+        plotBoneLandmarks(FemurBL, ax1, label_switch)
+        
+        # Second column, first row
+        # femoral head
+        ax2 = fig.add_subplot(222, projection = '3d')
+        plotTriangLight(ProxFemTri, BCS, ax2)
+        quickPlotRefSystem(JCS[hip_name], ax2)
+        # Plot spheres
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = AuxCSInfo['RadiusFH_Renault']*np.sin(phi)*np.cos(theta)
+        y = AuxCSInfo['RadiusFH_Renault']*np.sin(phi)*np.sin(theta)
+        z = AuxCSInfo['RadiusFH_Renault']*np.cos(phi)
+
+        ax2.plot_surface(x + AuxCSInfo['CenterFH_Renault'][0], y + AuxCSInfo['CenterFH_Renault'][1], z + AuxCSInfo['CenterFH_Renault'][2], \
+                        color = 'green', alpha=alpha)
+        # Remove grid
+        ax2.grid(False)
+        ax2.set_box_aspect([1,1,1])
+        
+        # Second column, second row
+        # femoral head
+        ax3 = fig.add_subplot(224, projection = '3d')
+        plotTriangLight(DistFemTri, BCS, ax3)
+        quickPlotRefSystem(JCS[knee_name], ax3)
+        # plot fitting method
+        if fit_method == 'spheres':
+            # Plot spheres
+            # Create a sphere
+            phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+            x = AuxCSInfo['sphere_radius_lat']*np.sin(phi)*np.cos(theta)
+            y = AuxCSInfo['sphere_radius_lat']*np.sin(phi)*np.sin(theta)
+            z = AuxCSInfo['sphere_radius_lat']*np.cos(phi)
+
+            ax3.plot_surface(x + AuxCSInfo['sphere_center_lat'][0], y + AuxCSInfo['sphere_center_lat'][1], z + AuxCSInfo['sphere_center_lat'][2], \
+                            color = 'blue', alpha=alpha)
+            
+            # Create a sphere
+            phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+            x = AuxCSInfo['sphere_radius_med']*np.sin(phi)*np.cos(theta)
+            y = AuxCSInfo['sphere_radius_med']*np.sin(phi)*np.sin(theta)
+            z = AuxCSInfo['sphere_radius_med']*np.cos(phi)
+
+            ax3.plot_surface(x + AuxCSInfo['sphere_center_med'][0], y + AuxCSInfo['sphere_center_med'][1], z + AuxCSInfo['sphere_center_med'][2], \
+                            color = 'red', alpha=alpha)
+        elif fit_method == 'cylinder':
+            # Plot cylinder
+            plotCylinder(AuxCSInfo['Cyl_Y'], AuxCSInfo['Cyl_Radius'], AuxCSInfo['Cyl_Pt'], AuxCSInfo['Cyl_Range']*1.1, ax3, alpha = alpha, color = 'green')
+        # elif fit_method == 'ellipsoids':
+        #     # Plot ellipsoids
+        #     plotEllipsoid(AuxCSInfo['ellips_centre_med'], AuxCSInfo['ellips_radii_med'], AuxCSInfo['ellips_evec_med'], ax3, alpha = alpha, color = 'red')
+        #     plotEllipsoid(AuxCSInfo['ellips_centre_lat'], AuxCSInfo['ellips_radii_lad'], AuxCSInfo['ellips_evec_lat'], ax3, alpha = alpha, color = 'blue')
+        else:
+            # loggin.error('GIBOC_femur.m ''method'' input has value: ''spheres'', ''cylinder'' or ''ellipsoids''.')
+            print('GIBOC_femur.m ''method'' input has value: ''spheres'', ''cylinder'' or ''ellipsoids''.')
+        # Remove grid
+        ax3.grid(False)
+        ax3.set_box_aspect([1,1,1])
+
+    # final printout
+    print('Done.')
+
+    return BCS, JCS, FemurBL, ArtSurf, AuxCSInfo
     
 # -----------------------------------------------------------------------------
 def CS_femur_SpheresOnCondyles(postCondyle_Lat, postCondyle_Med, CS, side, debug_plots = 0, in_mm = 1):
@@ -1725,19 +1839,18 @@ def CS_femur_SpheresOnCondyles(postCondyle_Lat, postCondyle_Med, CS, side, debug
     JCS[hip_name]['V'][:,2] = Zml_hip[:,0]
     JCS[hip_name]['child_location'] = CS['CenterFH_Renault']*dim_fact
     JCS[hip_name]['child_orientation'] = computeXYZAngleSeq(JCS[hip_name]['V'])
-    JCS[hip_name]['child_Origin'] = CS['CenterFH_Renault']
+    JCS[hip_name]['Origin'] = CS['CenterFH_Renault']
     
     # define knee joint
     Y_knee = np.cross(Z.T, X.T).T
-    # Y_knee = np.reshape(Y_knee,(Y_knee.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     JCS[knee_name] = {}
     JCS[knee_name]['V'] = np.zeros((3,3))
     JCS[knee_name]['V'][:,0] = X[:,0]
     JCS[knee_name]['V'][:,1] = Y_knee[:,0]
     JCS[knee_name]['V'][:,2] = Z[:,0]
-    JCS[knee_name]['child_location'] = KneeCenter*dim_fact
-    JCS[knee_name]['child_orientation'] = computeXYZAngleSeq(JCS[knee_name]['V'])
-    JCS[knee_name]['child_Origin'] = KneeCenter
+    JCS[knee_name]['parent_location'] = KneeCenter*dim_fact
+    JCS[knee_name]['parent_orientation'] = computeXYZAngleSeq(JCS[knee_name]['V'])
+    JCS[knee_name]['Origin'] = KneeCenter
     
     # -------------------------
     if debug_plots:
@@ -1771,8 +1884,146 @@ def CS_femur_SpheresOnCondyles(postCondyle_Lat, postCondyle_Med, CS, side, debug
     
     return CS, JCS
 
+# -----------------------------------------------------------------------------
+def CS_femur_CylinderOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots = 0, in_mm = 1, th = 1e-08):
+    # -------------------------------------------------------------------------
+    # NOTE: 
+    # -------------------------------------------------------------------------
+    CS = CS.copy()
+    JCS = {}
     
+    if in_mm == 1:
+        dim_fact = 0.001
+    else:
+        dim_fact = 1
+
+    # get sign correspondent to body side
+    side_sign, side_low = bodySide2Sign(side)
+
+    # joint names
+    knee_name = 'knee_' + side_low
+    hip_name  = 'hip_' + side_low
+
+    # get all points of triangulations
+    PtsCondyle = np.concatenate((Condyle_Lat['Points'], Condyle_Med['Points']))
+
+    # initialise the least square search for cylinder with the sphere fitting
+    # note that this function provides an already adjusted direction of the M-L
+    # axis that will be used for aligning the cylinder axis below.
+    CSSph, JCSSph = CS_femur_SpheresOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots, in_mm)
+
+    # initialise variables
+    Axe0 = CSSph['sphere_center_lat'] - CSSph['sphere_center_med']
+    Center0 = 0.5*(CSSph['sphere_center_lat'] + CSSph['sphere_center_med'])
+    Radius0 = 0.5*(CSSph['sphere_radius_lat'] + CSSph['sphere_radius_med'])
+    Z_dir = JCSSph[knee_name]['V'][:,2]
+    Z_dir = np.reshape(Z_dir,(Z_dir.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+
+    # ----------------------------------------
+    tmp_axe = Axe0 - Center0
+    # identify plane which proyection is a circunference, i.e.: plane XY, YZ or XZ)
+    PoP = np.argmin(np.abs(tmp_axe))
+    if PoP == 0:
+        x1 = 1
+        x2 = 2
+    elif PoP == 1:
+        x1 = 0
+        x2 = 2
+    elif PoP == 2:
+        x1 = 0
+        x2 = 1
+    # Symmetry axis
+    Saxis = np.argmax(np.abs(tmp_axe))
+    # rotation about the two axes that no correspond with symmetry axis  
+    alpha = np.arctan2(tmp_axe[x2],tmp_axe[x1])
+    beta = np.arctan2(tmp_axe[x1],tmp_axe[x2])
+
+    p = np.array([Center0[x1][0],Center0[x2][0],alpha[0],beta[0],Radius0])
+    xyz = PtsCondyle
+
+    est_p =  cylinderFitting(xyz, p, th)
+    # ------------------------------------------------------------
+    x0n = np.zeros((3,1))
+    x0n[x1] = est_p[0]
+    x0n[x2] = est_p[1]
+    x0n[PoP] = Center0[PoP][0]
+    # np.array([est_p[0], Center0[1][0], est_p[1]])
+    rn = est_p[4]
+    an = np.zeros((3,1))
+    an[x1] = rn*np.cos(est_p[2])
+    an[PoP] = -rn*np.cos(est_p[3])
+    an[Saxis] = tmp_axe[Saxis][0]
+
+    # Y2 is the cylinder axis versor
+    Y2 = preprocessing.normalize(an, axis=0)
+
+
+    # compute areas properties of condyles
+    PptiesLat = TriMesh2DProperties(Condyle_Lat)
+    PptiesMed = TriMesh2DProperties(Condyle_Med)
+
+    # extract computed centroid
+    CenterPtsLat = PptiesLat['Center']
+    CenterPtsMed = PptiesMed['Center']
+
+    # project centroid of each condyle on Y2 (the axis of the cylinder)
+    OnAxisPtLat = x0n.T + np.dot(CenterPtsLat-x0n.T, Y2) * Y2.T
+    OnAxisPtMed = x0n.T + np.dot(CenterPtsMed-x0n.T, Y2) * Y2.T
+
+    # knee centre is the midpoint of the two projects points
+    KneeCenter = 0.5*(OnAxisPtLat + OnAxisPtMed).T
+
+    # projecting condyle points on cylinder axis
+    PtsCondyldeOnCylAxis = (np.dot(PtsCondyle - x0n.T, Y2) * Y2.T) + x0n.T
+
+    # store cylinder data
+    CS['Cyl_Y'] = Y2 # normalised axis from lst
+    CS['Cyl_Pt'] = x0n
+    CS['Cyl_Radius'] = rn
+    CS['Cyl_Range'] = np.max(np.dot(PtsCondyldeOnCylAxis, Y2)) - np.min(np.dot(PtsCondyldeOnCylAxis, Y2))
+
+    # common axes: X is orthog to Y and Z, which are not mutually perpend
+    Y = preprocessing.normalize((CS['CenterFH_Renault'] - KneeCenter), axis=0) # mech axis of femur
+    Z = preprocessing.normalize(np.sign(np.dot(Y2.T,Z_dir))*Y2, axis=0) # cylinder axis (ALREADY side-adjusted)
+    X = np.cross(Y.T,Z.T).T
+
+    # define hip joint
+    Zml_hip = np.cross(X.T, Y.T).T
+    JCS[hip_name] = {}
+    JCS[hip_name]['V'] = np.zeros((3,3))
+    JCS[hip_name]['V'][:,0] = X[:,0]
+    JCS[hip_name]['V'][:,1] = Y[:,0]
+    JCS[hip_name]['V'][:,2] = Zml_hip[:,0]
+    JCS[hip_name]['child_location'] = CS['CenterFH_Renault']*dim_fact
+    JCS[hip_name]['child_orientation'] = computeXYZAngleSeq(JCS[hip_name]['V'])
+    JCS[hip_name]['Origin'] = CS['CenterFH_Renault']
+
+    # define knee joint
+    Y_knee = np.cross(Z.T, X.T).T
+    JCS[knee_name] = {}
+    JCS[knee_name]['V'] = np.zeros((3,3))
+    JCS[knee_name]['V'][:,0] = X[:,0]
+    JCS[knee_name]['V'][:,1] = Y_knee[:,0]
+    JCS[knee_name]['V'][:,2] = Z[:,0]
+    JCS[knee_name]['parent_location'] = KneeCenter*dim_fact
+    JCS[knee_name]['parent_orientation'] = computeXYZAngleSeq(JCS[knee_name]['V'])
+    JCS[knee_name]['Origin'] = KneeCenter
+
+    # -------------------------
+    if debug_plots:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection = '3d')
+        
+        ax.plot_trisurf(Condyle_Lat['Points'][:,0], Condyle_Lat['Points'][:,1], Condyle_Lat['Points'][:,2], triangles = Condyle_Lat['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+        ax.plot_trisurf(Condyle_Med['Points'][:,0], Condyle_Med['Points'][:,1], Condyle_Med['Points'][:,2], triangles = Condyle_Med['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'red')
+        
+        # Plot cylinder
+        plotCylinder(Y2, rn, KneeCenter, CS['Cyl_Range']*1.1, ax)
+        
+        ax.set_box_aspect([1,3,1])
+    # -------------------------   
     
+    return CS, JCS
     
     
     

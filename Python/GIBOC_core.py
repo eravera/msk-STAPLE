@@ -31,6 +31,7 @@ from matplotlib import path as mpl_path
 from sklearn import preprocessing
 from scipy.optimize import curve_fit
 from scipy.optimize import nnls
+from scipy.optimize import leastsq
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation as R
 from ellipse import LsqEllipse
@@ -1720,6 +1721,48 @@ def plotBoneLandmarks(BLDict, ax, label_switch = 1):
     
     return ax
 
+# -----------------------------------------------------------------------------
+def plotCylinder(symmetry_axis, radius, center, length, ax, alpha = 0.6, color = 'b'):
+    # -------------------------------------------------------------------------
+    # Create a cylinder
+    height_z = np.linspace(-length/2, length/2, 50)
+    theta = np.linspace(0, 2*np.pi, 50)
+    theta_grid, z_grid = np.meshgrid(theta, height_z)
+
+    x = radius*np.cos(theta_grid)
+    y = radius*np.sin(theta_grid)
+    z = z_grid
+    
+    # rotate the samples
+    Uz = preprocessing.normalize(symmetry_axis, axis=0)
+    i = np.array([1,0,0])
+    i = np.reshape(i,(i.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    Uy = np.cross(Uz.T,i.T).T
+    Uy = preprocessing.normalize(Uy, axis=0)
+    Ux = np.cross(Uy.T, Uz.T).T
+
+    U = np.zeros((3,3))
+    U[:,0] = Ux[:,0]
+    U[:,1] = Uy[:,0]
+    U[:,2] = Uz[:,0]
+
+    t = np.transpose(np.array([x,y,z]), (1,2,0))
+    Xrot, Yrot, Zrot = np.transpose(np.dot(t, U), (2,0,1))
+    
+    # Plot the surface
+    ax.plot_surface(Xrot + center[0], Yrot + center[1], Zrot + center[2], color = color, alpha=alpha)
+    #label axes
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    # Remove grid
+    ax.grid(False)
+    
+    return ax
+
+
+
+
 #%% ---------------------------------------------------------------------------
 # FittingFun
 # -----------------------------------------------------------------------------
@@ -1887,7 +1930,33 @@ def fit_ellipse(x, y):
     
     return ellipse_t
 
+# -----------------------------------------------------------------------------
+def cylinderFitting(xyz, p, th=1e-08):
+    # 
+    # This is a fitting for a vertical cylinder fitting
+    # Reference:
+    # http://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XXXIX-B5/169/2012/isprsarchives-XXXIX-B5-169-2012.pdf
+    # 
+    # xyz is a matrix contain at least 5 rows, and each row stores x y z of a cylindrical surface
+    # p is initial values of the parameter;
+    # p[0] = Xc, x coordinate of the cylinder centre
+    # P[1] = Yc, y coordinate of the cylinder centre
+    # P[2] = alpha, rotation angle (radian) about the x-axis
+    # P[3] = beta, rotation angle (radian) about the y-axis
+    # P[4] = r, radius of the cylinder
+    # 
+    # th, threshold for the convergence of the least squares
+ 
+    x = xyz[:,0]
+    y = xyz[:,1]
+    z = xyz[:,2]
 
+    fitfunc = lambda p, x, y, z: (- np.cos(p[3])*(p[0] - x) - z*np.cos(p[2])*np.sin(p[3]) - np.sin(p[2])*np.sin(p[3])*(p[1] - y))**2 + (z*np.sin(p[2]) - np.cos(p[2])*(p[1] - y))**2 #fit function
+    errfunc = lambda p, x, y, z: fitfunc(p, x, y, z) - p[4]**2 #error function 
+
+    est_p , success = leastsq(errfunc, p, args=(x, y, z), gtol=th, maxfev=1000)
+    
+    return est_p
 
 
 

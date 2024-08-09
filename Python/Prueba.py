@@ -28,16 +28,20 @@ from Public_functions import load_mesh, freeBoundary, PolyArea, inpolygon
 from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_femur_fitSphere2FemHead, \
     Kai2014_femur_fitSphere2FemHead, GIBOC_isolate_epiphysis, GIBOC_femur_processEpiPhysis, \
     GIBOC_femur_getCondyleMostProxPoint, GIBOC_femur_smoothCondyles, GIBOC_femur_filterCondyleSurf, \
-    GIBOC_femur_ArticSurf, CS_femur_SpheresOnCondyles
+    GIBOC_femur_ArticSurf, CS_femur_SpheresOnCondyles, CS_femur_CylinderOnCondyles
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
     TriErodeMesh, TriKeepLargestPatch, TriOpenMesh, TriPlanIntersect, quickPlotRefSystem, \
     TriSliceObjAlongAxis, fitCSA, LargestEdgeConvHull, PCRegionGrowing, lsplane, \
     fit_ellipse, PtsOnCondylesFemur, TriVertexNormal, TriCurvature, TriConnectedPatch, \
-    TriCloseMesh, TriDifferenceMesh
-    
-from geometry import bodySide2Sign
+    TriCloseMesh, TriDifferenceMesh, cylinderFitting, TriMesh2DProperties, plotCylinder, \
+    TriChangeCS, plotTriangLight, plotBoneLandmarks
+
+from opensim_tools import computeXYZAngleSeq
+
+from geometry import bodySide2Sign, getBoneLandmarkList, findLandmarkCoords, \
+    landmarkBoneGeom
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -627,129 +631,146 @@ ArtSurf['condyles_' + side_raw] = TriUnite(fullCondyle_Med_Tri, fullCondyle_Lat_
 # how to compute the joint axes
 print('Fitting femoral distal articular surfaces using ' + fit_method + ' method...')
 
-fit_method = 'spheres'
 if fit_method == 'spheres':
     # Fit two spheres on articular surfaces of posterior condyles
     AuxCSInfo, JCS = CS_femur_SpheresOnCondyles(postCondyle_Lat_Tri, postCondyle_Med_Tri, AuxCSInfo, side_raw)
-# elif fit_method == 'cylinder':
-#     # Fit the posterior condyles with a cylinder
-#     # AuxCSInfo, JCS = CS_femur_CylinderOnCondyles(postCondyle_Lat_Tri, postCondyle_Med_Tri, AuxCSInfo, side_raw)
+elif fit_method == 'cylinder':
+    # Fit the posterior condyles with a cylinder
+    AuxCSInfo, JCS = CS_femur_CylinderOnCondyles(postCondyle_Lat_Tri, postCondyle_Med_Tri, AuxCSInfo, side_raw)
 # elif fit_method == 'ellipsoids':
-#     # Fit the entire condyles with an ellipsoid
-#     # AuxCSInfo, JCS = CS_femur_EllipsoidsOnCondyles(fullCondyle_Lat_Tri, fullCondyle_Med_Tri, AuxCSInfo, side_raw)
-# else:
-#     logg.error('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
-#     print('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
+    # Fit the entire condyles with an ellipsoid
+    # AuxCSInfo, JCS = CS_femur_EllipsoidsOnCondyles(fullCondyle_Lat_Tri, fullCondyle_Med_Tri, AuxCSInfo, side_raw)
+else:
+    # logg.error('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
+    print('GIBOC_femur method input has value: spheres, cylinder or ellipsoids. \n To extract the articular surfaces without calculating joint parameters you can use artic_surf_only.')
+
+# joint names (extracted from JCS defined in the fit_methods)
+joint_name_list = list(JCS.keys())
+hip_name = [name for name in joint_name_list if 'hip' in name][0]
+knee_name = [name for name in joint_name_list if 'knee' in name][0]
+side_low = hip_name[-1]
+
+# define segment ref system
+BCS = {}
+BCS['CenterVol'] = CenterVol
+BCS['Origin'] = AuxCSInfo['CenterFH_Renault']
+BCS['InertiaMatrix'] = InertiaMatrix
+BCS['V'] = JCS[hip_name]['V'] # needed for plotting of femurTri
+
+# landmark bone according to CS (only Origin and CS.V are used)
+FemurBL = landmarkBoneGeom(femurTri, BCS, 'femur_' + side_low)
 
 
-# -----------------------------
-
-Condyle_Lat = postCondyle_Lat_Tri.copy() 
-Condyle_Med = postCondyle_Med_Tri.copy() 
-CS = AuxCSInfo.copy()
-side = side_raw
-debug_plots = 0
-in_mm = 1
-
-
-# get sign correspondent to body side
-side_sign, side_low = bodySide2Sign(side)
-
-# joint names
-knee_name = 'knee_' + side_low
-hip_name  = 'hip_' + side_low
-
-# get all points of triangulations
-PtsCondyle = np.concatenate((Condyle_Lat['Points'], Condyle_Med['Points']))
-
-# initialise the least square search for cylinder with the sphere fitting
-# note that this function provides an already adjusted direction of the M-L
-# axis that will be used for aligning the cylinder axis below.
-CSSph, JCSSph = CS_femur_SpheresOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots, in_mm)
-
-# initialise variables
-Axe0 = CSSph['sphere_center_lat'] - CSSph['sphere_center_med']
-Center0 = 0.5*(CSSph['sphere_center_lat'] + CSSph['sphere_center_med'])
-Radius0 = 0.5*(CSSph['sphere_radius_lat'] + CSSph['sphere_radius_med'])
-Z_dir = JCSSph[knee_name]['V'][:,2]
-
-t1 = Axe0 - Center0
-alpha = np.arctan2(t1[2],t1[0])
-beta = np.arctan2(t1[0],t1[2])
-
-
-
-
-# ----------------------------------------
-
-
-
-
-from scipy.optimize import leastsq
-
-
-def cylinderFitting(xyz,p,th):
-
-    """
-    This is a fitting for a vertical cylinder fitting
-    Reference:
-    http://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XXXIX-B5/169/2012/isprsarchives-XXXIX-B5-169-2012.pdf
-
-    xyz is a matrix contain at least 5 rows, and each row stores x y z of a cylindrical surface
-    p is initial values of the parameter;
-    p[0] = Xc, x coordinate of the cylinder centre
-    P[1] = Yc, y coordinate of the cylinder centre
-    P[2] = alpha, rotation angle (radian) about the x-axis
-    P[3] = beta, rotation angle (radian) about the y-axis
-    P[4] = r, radius of the cylinder
-
-    th, threshold for the convergence of the least squares
-
-    """   
-    x = xyz[:,0]
-    y = xyz[:,1]
-    z = xyz[:,2]
-
-    fitfunc = lambda p, x, y, z: (- np.cos(p[3])*(p[0] - x) - z*np.cos(p[2])*np.sin(p[3]) - np.sin(p[2])*np.sin(p[3])*(p[1] - y))**2 + (z*np.sin(p[2]) - np.cos(p[2])*(p[1] - y))**2 #fit function
-    errfunc = lambda p, x, y, z: fitfunc(p, x, y, z) - p[4]**2 #error function 
-
-    est_p , success = leastsq(errfunc, p, args=(x, y, z), maxfev=1000)
+# result plot
+label_switch = 1
+result_plots = 1
+if result_plots:
+    fig = plt.figure()
+    fig.suptitle('GIBOC | bone: femur | fit: ' + fit_method + ' | side: ' + side_low)
+    alpha = 0.5
     
-    return est_p
+    # First column
+    # plot full femur and final JCSs
+    ax1 = fig.add_subplot(121, projection = '3d')
+    
+    plotTriangLight(femurTri, BCS, ax1)
+    quickPlotRefSystem(JCS[hip_name], ax1)
+    quickPlotRefSystem(JCS[knee_name], ax1)
+    # add articular surfaces
+    if fit_method == 'ellipsoids':
+        ax1.plot_trisurf(fullCondyle_Lat_Tri['Points'][:,0], fullCondyle_Lat_Tri['Points'][:,1], fullCondyle_Lat_Tri['Points'][:,2], triangles = fullCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'blue')
+        ax1.plot_trisurf(fullCondyle_Med_Tri['Points'][:,0], fullCondyle_Med_Tri['Points'][:,1], fullCondyle_Med_Tri['Points'][:,2], triangles = fullCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'red')
+    else:
+        ax1.plot_trisurf(postCondyle_Lat_Tri['Points'][:,0], postCondyle_Lat_Tri['Points'][:,1], postCondyle_Lat_Tri['Points'][:,2], triangles = postCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'blue')
+        ax1.plot_trisurf(postCondyle_Med_Tri['Points'][:,0], postCondyle_Med_Tri['Points'][:,1], postCondyle_Med_Tri['Points'][:,2], triangles = postCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=alpha, shade=False, color = 'red')
+    # Remove grid
+    ax1.grid(False)
+    ax1.set_box_aspect([1,3,1])
+    
+    # add markers and labels
+    plotBoneLandmarks(FemurBL, ax1, label_switch)
+    
+    # Second column, first row
+    # femoral head
+    ax2 = fig.add_subplot(222, projection = '3d')
+    plotTriangLight(ProxFemTri, BCS, ax2)
+    quickPlotRefSystem(JCS[hip_name], ax2)
+    # Plot spheres
+    # Create a sphere
+    phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+    x = AuxCSInfo['RadiusFH_Renault']*np.sin(phi)*np.cos(theta)
+    y = AuxCSInfo['RadiusFH_Renault']*np.sin(phi)*np.sin(theta)
+    z = AuxCSInfo['RadiusFH_Renault']*np.cos(phi)
 
-p = np.array([Center0[0][0],Center0[2][0],alpha[0],beta[0],Radius0])
-xyz = PtsCondyle
+    ax2.plot_surface(x + AuxCSInfo['CenterFH_Renault'][0], y + AuxCSInfo['CenterFH_Renault'][1], z + AuxCSInfo['CenterFH_Renault'][2], \
+                    color = 'green', alpha=alpha)
+    # Remove grid
+    ax2.grid(False)
+    ax2.set_box_aspect([1,1,1])
+    
+    # Second column, second row
+    # femoral head
+    ax3 = fig.add_subplot(224, projection = '3d')
+    plotTriangLight(DistFemTri, BCS, ax3)
+    quickPlotRefSystem(JCS[knee_name], ax3)
+    # plot fitting method
+    if fit_method == 'spheres':
+        # Plot spheres
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = AuxCSInfo['sphere_radius_lat']*np.sin(phi)*np.cos(theta)
+        y = AuxCSInfo['sphere_radius_lat']*np.sin(phi)*np.sin(theta)
+        z = AuxCSInfo['sphere_radius_lat']*np.cos(phi)
 
-est_p =  cylinderFitting(xyz,p,0.00001)
+        ax3.plot_surface(x + AuxCSInfo['sphere_center_lat'][0], y + AuxCSInfo['sphere_center_lat'][1], z + AuxCSInfo['sphere_center_lat'][2], \
+                        color = 'blue', alpha=alpha)
+        
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = AuxCSInfo['sphere_radius_med']*np.sin(phi)*np.cos(theta)
+        y = AuxCSInfo['sphere_radius_med']*np.sin(phi)*np.sin(theta)
+        z = AuxCSInfo['sphere_radius_med']*np.cos(phi)
+
+        ax3.plot_surface(x + AuxCSInfo['sphere_center_med'][0], y + AuxCSInfo['sphere_center_med'][1], z + AuxCSInfo['sphere_center_med'][2], \
+                        color = 'red', alpha=alpha)
+    elif fit_method == 'cylinder':
+        # Plot cylinder
+        plotCylinder(AuxCSInfo['Cyl_Y'], AuxCSInfo['Cyl_Radius'], AuxCSInfo['Cyl_Pt'], AuxCSInfo['Cyl_Range']*1.1, ax3, alpha = alpha, color = 'green')
+    # elif fit_method == 'ellipsoids':
+    #     # Plot ellipsoids
+    #     plotEllipsoid(AuxCSInfo['ellips_centre_med'], AuxCSInfo['ellips_radii_med'], AuxCSInfo['ellips_evec_med'], ax3, alpha = alpha, color = 'red')
+    #     plotEllipsoid(AuxCSInfo['ellips_centre_lat'], AuxCSInfo['ellips_radii_lad'], AuxCSInfo['ellips_evec_lat'], ax3, alpha = alpha, color = 'blue')
+    else:
+        # loggin.error('GIBOC_femur.m ''method'' input has value: ''spheres'', ''cylinder'' or ''ellipsoids''.')
+        print('GIBOC_femur.m ''method'' input has value: ''spheres'', ''cylinder'' or ''ellipsoids''.')
+    # Remove grid
+    ax3.grid(False)
+    ax3.set_box_aspect([1,1,1])
+
+# final printout
+print('Done.')
 
 
 
 
 
-# if __name__=="__main__":
-
-#     np.set_printoptions(suppress=True)    
-#     xyz = np.loadtxt('cylinder11.xyz')
-#     #print xyz
-#     print("Initial Parameters: ")
-#     p = np.array([-13.79,-8.45,0,0,0.3])
-#     print(p)
-#     print(" ")
-
-#     print("Performing Cylinder Fitting ... ")
-#     est_p =  cylinderFitting(xyz,p,0.00001)
-#     print("Fitting Done!")
-#     print(" ")
-
-
-#     print("Estimated Parameters: ")
-#     print(est_p)
 
 
 
-
-
-
+# # -------------------------
+# if debug_plots:
+#     fig = plt.figure()
+#     ax = fig.add_subplot(projection = '3d')
+    
+#     ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'cyan')
+#     ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'yellow')
+#     ax.plot_trisurf(Condyle_Lat['Points'][:,0], Condyle_Lat['Points'][:,1], Condyle_Lat['Points'][:,2], triangles = Condyle_Lat['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+#     ax.plot_trisurf(Condyle_Med['Points'][:,0], Condyle_Med['Points'][:,1], Condyle_Med['Points'][:,2], triangles = Condyle_Med['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'red')
+    
+#     # Plot cylinder
+#     plotCylinder(Y2, rn, KneeCenter, CS['Cyl_Range']*1.1, ax)
+    
+#     ax.set_box_aspect([1,3,1])
 
 
 
@@ -763,19 +784,19 @@ est_p =  cylinderFitting(xyz,p,0.00001)
 
 #%% PLOTS ....................
 
-fig = plt.figure()
-ax = fig.add_subplot(projection = '3d')
-# # # # # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
-# # # # ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
-# # # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# fig = plt.figure()
+# ax = fig.add_subplot(projection = '3d')
+# # # # # # # ax.plot_trisurf(femurTri['Points'][:,0], femurTri['Points'][:,1], femurTri['Points'][:,2], triangles = femurTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# # # # # ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+# # # # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 
-# ax.plot_trisurf(Condyle['Points'][:,0], Condyle['Points'][:,1], Condyle['Points'][:,2], triangles = Condyle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
-# ax.plot_trisurf(Condyle_edges['Points'][:,0], Condyle_edges['Points'][:,1], Condyle_edges['Points'][:,2], triangles = Condyle_edges['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'red')
-# ax.plot_trisurf(Condyle_end['Points'][:,0], Condyle_end['Points'][:,1], Condyle_end['Points'][:,2], triangles = Condyle_end['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
-ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'red')
-ax.plot_trisurf(fullCondyle_Lat_Tri['Points'][:,0], fullCondyle_Lat_Tri['Points'][:,1], fullCondyle_Lat_Tri['Points'][:,2], triangles = fullCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
-ax.plot_trisurf(fullCondyle_Med_Tri['Points'][:,0], fullCondyle_Med_Tri['Points'][:,1], fullCondyle_Med_Tri['Points'][:,2], triangles = fullCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'blue')
-# # ax.plot_trisurf(KConvHull['Points'][:,0], KConvHull['Points'][:,1], KConvHull['Points'][:,2], triangles = KConvHull['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'green')
+# # ax.plot_trisurf(Condyle['Points'][:,0], Condyle['Points'][:,1], Condyle['Points'][:,2], triangles = Condyle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
+# # ax.plot_trisurf(Condyle_edges['Points'][:,0], Condyle_edges['Points'][:,1], Condyle_edges['Points'][:,2], triangles = Condyle_edges['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'red')
+# # ax.plot_trisurf(Condyle_end['Points'][:,0], Condyle_end['Points'][:,1], Condyle_end['Points'][:,2], triangles = Condyle_end['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+# ax.plot_trisurf(EpiFemTri['Points'][:,0], EpiFemTri['Points'][:,1], EpiFemTri['Points'][:,2], triangles = EpiFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'red')
+# ax.plot_trisurf(fullCondyle_Lat_Tri['Points'][:,0], fullCondyle_Lat_Tri['Points'][:,1], fullCondyle_Lat_Tri['Points'][:,2], triangles = fullCondyle_Lat_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'green')
+# ax.plot_trisurf(fullCondyle_Med_Tri['Points'][:,0], fullCondyle_Med_Tri['Points'][:,1], fullCondyle_Med_Tri['Points'][:,2], triangles = fullCondyle_Med_Tri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'blue')
+# # # ax.plot_trisurf(KConvHull['Points'][:,0], KConvHull['Points'][:,1], KConvHull['Points'][:,2], triangles = KConvHull['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'green')
 
     
     

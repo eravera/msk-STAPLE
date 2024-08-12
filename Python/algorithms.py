@@ -61,7 +61,8 @@ from GIBOC_core import TriInertiaPpties, \
                                                   TriCloseMesh, \
                                                    PtsOnCondylesFemur, \
                                                     cylinderFitting, \
-                                                     plotCylinder
+                                                     plotCylinder, \
+                                                      PlanPolygonCentroid3D
 
 from opensim_tools import computeXYZAngleSeq
 
@@ -1358,6 +1359,73 @@ def GIBOC_femur_ArticSurf(EpiFem, CSs, CoeffMorpho, art_surface, debug_plots=0):
 
     return DesiredArtSurfMed_Tri, DesiredArtSurfLat_Tri, CSs
 
+# -----------------------------------------------------------------------------
+def tibia_guess_CS(Tibia = {}, debug_plots = 1):
+    # -------------------------------------------------------------------------
+    # Function to test putting back together a correct orientation of the femur
+    # Inputs :
+    # Tibia : A triangulation of a complete tibia
+    # debug_plots : A boolean to display plots useful for debugging
+    # 
+    # Output :
+    # Z0 : A unit vector giving the distal to proximal direction
+    # -------------------------------------------------------------------------
+    #                           General Idea
+    # The largest cross section along the principal inertia axis is located at
+    # the tibial plateau. From that information it's easy to determine the
+    # distal to proximal direction.
+    # -------------------------------------------------------------------------
+    # Get principal inertia axis
+    # Get the principal inertia axis of the tibia (potentially wrongly orientated)
+    Z0 = np.zeros((3,1))
+    V_all, CenterVol, _, _, _ = TriInertiaPpties(Tibia)
+    Z0 = V_all[0]
+    Z0 = np.reshape(Z0,(Z0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+
+    # Get CSA
+    cut_offset = 0.5
+    min_coord = np.min(np.dot(Tibia['Points'], Z0)) + cut_offset
+    max_coord = np.max(np.dot(Tibia['Points'], Z0)) - cut_offset
+
+    Alt = np.linspace(min_coord, max_coord, 100)
+
+    Curves = {}
+    Areas = []
+    Centroids = {}
+
+    for it, d in enumerate(-Alt):
+
+        Curves[str(it)], _, _ = TriPlanIntersect(Tibia, Z0, d)
+        max_area = 0
+        for key in Curves[str(it)].keys():
+            Centroids[str(it)], area_j = PlanPolygonCentroid3D(Curves[str(it)][key]['Pts'])
+            if area_j > max_area:
+                max_area = area_j
+        Areas.append(max_area)
+        
+    i_max_Area = np.argmax(Areas)
+
+    if i_max_Area > 0.66*len(Alt):
+        Z0 *= 1
+    elif i_max_Area < 0.33*len(Alt):
+        Z0 *= -1
+    else:
+        # loggin.warning('Identification of the initial distal to proximal axis of the tibia went wrong. Check the tibia geometry')
+        print('Identification of the initial distal to proximal axis of the tibia went wrong. Check the tibia geometry')
+ 
+    if debug_plots:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection = '3d')
+        
+        plotDot(Centroids[str(i_max_Area)], ax, 'r', 3)
+        # plot Z0 vector
+        ax.quiver(CenterVol[0], CenterVol[1], CenterVol[2], \
+                  Z0[0], Z0[1], Z0[2], \
+                  color='b', length = 220)
+        ax.plot_trisurf(Tibia['Points'][:,0], Tibia['Points'][:,1], Tibia['Points'][:,2], triangles = Tibia['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.2, shade=False, color = 'cyan')
+        ax.set_box_aspect([1,3,1])
+    
+    return Z0
 
 
 
@@ -1947,11 +2015,11 @@ def CS_femur_CylinderOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots 
     x0n[x1] = est_p[0]
     x0n[x2] = est_p[1]
     x0n[PoP] = Center0[PoP][0]
-    # np.array([est_p[0], Center0[1][0], est_p[1]])
+    
     rn = est_p[4]
     an = np.zeros((3,1))
-    an[x1] = rn*np.cos(est_p[2])
-    an[PoP] = -rn*np.cos(est_p[3])
+    an[x1] = rn*np.cos(est_p[3])
+    an[PoP] = rn*np.cos(est_p[2])
     an[Saxis] = tmp_axe[Saxis][0]
 
     # Y2 is the cylinder axis versor

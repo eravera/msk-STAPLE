@@ -1596,8 +1596,48 @@ def PtsOnCondylesFemur(PtsCondyle_0, Pts_Epiphysis, CutAngle, InSetRatio, ellip_
     
     return PtsCondyle_end, PtsKeptID
 
-
-
+# -----------------------------------------------------------------------------
+def PlanPolygonCentroid3D(Pts):
+    # -------------------------------------------------------------------------
+    # PlanPolygonCentroid3D Find the centroid of a 2D Polygon, decribed by its
+    # boundary (a close curve) in a 3D space.
+    # Works with arbitrary shapes (convex or not)
+    # -------------------------------------------------------------------------
+    Centroid = np.nan
+    Area = np.nan
+    
+    if np.all(np.shape(Pts) == np.array([0,0])):
+        logging.warning('PlanPolygonCentroid3D Empty Pts variable.')
+        Centroid = np.nan
+        Area = np.nan
+        return Centroid, Area
+    
+    if np.any(Pts[0] != Pts[-1]):
+        Pts = np.concatenate((Pts, np.array([Pts[0]])), axis=0)
+    
+    # Initial Guess of center
+    Center0 = np.mean(Pts[:-1], axis = 0)
+    
+    # Middle Point of each polygon side
+    PtsMiddle = Pts[:-1] + np.diff(Pts, axis = 0)/2
+    
+    # Get the centroid of each points connected
+    TrianglesCentroid  = PtsMiddle - 1/3*(PtsMiddle-Center0)
+    
+    # Get the area of each triangles
+    _, V = np.linalg.eig(np.cov(Pts[:-1].T))
+    n = V[0] # normal to polygon plan
+    
+    TrianglesArea = 1/2*np.dot(np.cross(np.diff(Pts, axis = 0),-(Pts[:-1]-Center0)), n)
+    
+    # Barycenter of triangles
+    Centroid = np.sum(TrianglesCentroid*np.tile(TrianglesArea, [3,1]).T, axis = 0)/np.sum(TrianglesArea)
+    
+    Area = np.abs(np.sum(TrianglesArea))
+    
+    return Centroid, Area
+    
+    
 
 
 
@@ -1737,9 +1777,9 @@ def plotCylinder(symmetry_axis, radius, center, length, ax, alpha = 0.6, color =
     Uz = preprocessing.normalize(symmetry_axis, axis=0)
     i = np.array([1,0,0])
     i = np.reshape(i,(i.size, 1)) # convert 1d (3,) to 2d (3,1) vector
-    Uy = np.cross(Uz.T,i.T).T
-    Uy = preprocessing.normalize(Uy, axis=0)
-    Ux = np.cross(Uy.T, Uz.T).T
+    Ux = np.cross(Uz.T,i.T).T
+    Ux = preprocessing.normalize(Ux, axis=0)
+    Uy = np.cross(Ux.T, Uz.T).T
 
     U = np.zeros((3,3))
     U[:,0] = Ux[:,0]
@@ -1898,7 +1938,6 @@ def fitCSA(Z, Area):
     # plt.plot(xData, gauss_lineal(xData, *fitresult2), 'r--')
     
     return Zdiaph, Zepi, Or
-
 
 # -----------------------------------------------------------------------------
 def fit_ellipse(x, y):   

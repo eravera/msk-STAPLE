@@ -30,8 +30,8 @@ from GIBOC_core import TriChangeCS, \
                         plotTriangLight, \
                          quickPlotRefSystem
                         
-
-# from algorithms import STAPLE_pelvis
+# from algorithms import STAPLE_pelvis, \
+#                         GIBOC_femur
 
 # -----------------------------------------------------------------------------
 def inferBodySideFromAnatomicStruct(anat_struct):
@@ -503,27 +503,48 @@ def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE',
     if toes_name in triGeomBoneSet:
         print('  toes: ', 'N/A')
         
-    # # ---- PELVIS -----
-    # if 'pelvis' in triGeomBoneSet:
-    #     if algo_pelvis == 'STAPLE':
-    #         BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-    #             STAPLE_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
-    # #     if algo_pelvis == 'Kai2014':
-    # #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-    # #         #     Kai2014_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
-    # elif 'pelvis_no_sacrum' in triGeomBoneSet:
-    #     if algo_pelvis == 'STAPLE':
-    #         BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-    #             GIBOC_femur(triGeomBoneSet['pelvis_no_sacrum'], side, result_plots, debug_plots, in_mm)
-    # #     if algo_pelvis == 'Kai2014':
-    # #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
-    # #         #     Kai2014_pelvis(triGeomBoneSet['pelvis_no_sacrum'], side, result_plots, debug_plots, in_mm)
+    # ---- PELVIS -----
+    if 'pelvis' in triGeomBoneSet:
+        if algo_pelvis == 'STAPLE':
+            BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+                STAPLE_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    #     if algo_pelvis == 'Kai2014':
+    #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    #         #     Kai2014_pelvis(triGeomBoneSet['pelvis'], side, result_plots, debug_plots, in_mm)
+    elif 'pelvis_no_sacrum' in triGeomBoneSet:
+        if algo_pelvis == 'STAPLE':
+            BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+                STAPLE_pelvis(triGeomBoneSet['pelvis_no_sacrum'], side, result_plots, debug_plots, in_mm)
+    #     if algo_pelvis == 'Kai2014':
+    #         # BCS['pelvis'], JCS['pelvis'], BL['pelvis']  = \
+    #         #     Kai2014_pelvis(triGeomBoneSet['pelvis_no_sacrum'], side, result_plots, debug_plots, in_mm)
     
-    # # # ---- FEMUR -----
-    # # if femur_name in triGeomBoneSet:
-    # #     if 'GIBOC' in femur_name:
-    # #         # BCS[femur_name], JCS[femur_name], BL[femur_name] = \
-    # #         #     GIBOC_femur(triGeomBoneSet['femur_name'], side, femur_name[6:], result_plots, debug_plots, in_mm)
+    # ---- FEMUR -----
+    if femur_name in triGeomBoneSet:
+        if 'GIBOC' in triGeomBoneSet:
+            BCS['femur'], JCS['femur'], BL['femur'] = \
+                GIBOC_femur(triGeomBoneSet['femur_name'], side, triGeomBoneSet[6:], result_plots, debug_plots, in_mm)
+        # if 'Miranda' in triGeomBoneSet:
+        #     BCS[femur_name], JCS[femur_name], BL[femur_name] = \
+        #         Miranda2010_buildfACS(triGeomBoneSet['femur_name'])
+        # if 'Kai2014' in triGeomBoneSet:
+        #     BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
+        #         Kai2014_femur(triGeomBoneSet['femur_name'], side)
+        else:
+            BCS['femur'], JCS['femur'], BL['femur'] = \
+                GIBOC_femur(triGeomBoneSet['femur_name'], side, triGeomBoneSet[6:], result_plots, debug_plots, in_mm)
+    
+    # # ---- TIBIA -----
+    # if tibia_name in triGeomBoneSet:
+    #     # if 'GIBOC' in triGeomBoneSet:
+    #     #     BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
+    #     #         GIBOC_tibia(triGeomBoneSet['tibia_name'], side, triGeomBoneSet[6:], result_plots, debug_plots, in_mm)
+    #     if 'Kai2014' in triGeomBoneSet:
+    #         BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
+    #             Kai2014_tibia(triGeomBoneSet['tibia_name'], side, result_plots, debug_plots, in_mm)
+    #     else:
+    #         BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
+    #             Kai2014_tibia(triGeomBoneSet['tibia_name'], side, result_plots, debug_plots, in_mm)
     
     
     

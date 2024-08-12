@@ -41,8 +41,7 @@ from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHo
 
 from opensim_tools import computeXYZAngleSeq
 
-# from geometry import bodySide2Sign, getBoneLandmarkList, findLandmarkCoords, \
-#     landmarkBoneGeom
+from geometry import bodySide2Sign
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -567,6 +566,83 @@ femurTri = load_mesh(ruta + 'Python/femur_new_simplify.stl')
 tibiaTri = load_mesh(ruta + 'Python/tibia_new_simplify.stl')
 
 Z0 = tibia_guess_CS(tibiaTri, 0)
+
+
+
+# --------------------------------------------------------------
+# def Kai2014_tibia(tibiaTri, side_raw = 'r', result_plots = 1, debug_plots = 0, in_mm = 1):
+    # -------------------------------------------------------------------------
+    # Custom implementation of the method for defining a reference system of 
+    # the tibia described in the following publication: Kai, Shin, et al. 
+    # Journal of biomechanics 47.5 (2014): 1229-1233. https://doi.org/10.1016/j.jbiomech.2013.12.013.
+    # The algorithm slices the tibia along the vertical axis identified via
+    # principal component analysis, identifies the largest section and fits an
+    # ellips to it. It finally uses the ellipse axes to define the reference
+    # system. This implementation includes several non-obvious checks to ensure 
+    # that the bone geometry is always sliced in the correct direction.
+    # 
+    # Inputs:
+    # tibiaTri - MATLAB triangulation object of the entire tibial geometry.
+    # 
+    # side_raw - generic string identifying a body side. 'right', 'r', 'left' 
+    # and 'l' are accepted inputs, both lower and upper cases.
+    # 
+    # result_plots - enable plots of final fittings and reference systems. 
+    # Value: 1 (default) or 0.
+    # 
+    # debug_plots - enable plots used in debugging. Value: 1 or 0 (default).
+    # 
+    # in_mm - (optional) indicates if the provided geometries are given in mm
+    # (value: 1) or m (value: 0). Please note that all tests and analyses
+    # done so far were performed on geometries expressed in mm, so this
+    # option is more a placeholder for future adjustments.
+    # 
+    # Outputs:
+    # BCS - MATLAB structure containing body reference system and other 
+    # geometrical features identified by the algorithm.
+    # 
+    # JCS - MATLAB structure containing the joint reference systems connected
+    # to the bone being analysed. These might NOT be sufficient to define
+    # a joint of the musculoskeletal model yet.
+    # 
+    # femurBL - MATLAB structure containing the bony landmarks identified 
+    # on the bone geometries based on the defined reference systems. Each
+    # field is named like a landmark and contain its 3D coordinates.
+    # -------------------------------------------------------------------------
+tibiaTri = tibiaTri.copy()
+side_raw = 'r'
+result_plots = 1
+debug_plots = 0
+in_mm = 1
+    
+if in_mm == 1:
+    dim_fact = 0.001
+else:
+    dim_fact = 1
+
+# get side id correspondent to body side 
+side_sign, side_low = bodySide2Sign(side_raw)
+
+# inform user about settings
+print('---------------------')
+print('   KAI2014 - TIBIA   ')
+print('---------------------')
+print('* Body Side: ' + side_low.upper())
+print('* Fit Method: "N/A"')
+print('* Result Plots: ' + ['Off','On'][result_plots])
+print('* Debug  Plots: ' + ['Off','On'][debug_plots])
+print('* Triang Units: mm')
+print('---------------------')
+print('Initializing method...')
+
+# it is assumed that, even for partial geometries, the tibial bone is
+# always provided as unique file. Previous versions of this function did
+# use separated proximal and distal triangulations. Check Git history if
+# you are interested in that.
+print('Computing PCA for given geometry...')
+
+
+
 
 
 

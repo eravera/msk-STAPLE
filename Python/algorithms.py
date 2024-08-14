@@ -1427,6 +1427,52 @@ def tibia_guess_CS(Tibia = {}, debug_plots = 1):
     
     return Z0
 
+# -----------------------------------------------------------------------------
+def tibia_identify_lateral_direction(DistTib = [], Z0 = np.zeros((3,1))):
+    # -------------------------------------------------------------------------
+    # slice at centroid of distal tibia
+    _, CenterVolTibDist, _, _, _ = TriInertiaPpties(DistTib)
+    d = np.dot(CenterVolTibDist.T, Z0)
+    DistCurves , _, _ = TriPlanIntersect(DistTib, Z0, -d)
+    
+    # check the number of curves on that slice
+    N_DistCurves = len(DistCurves)
+    just_tibia = True
+    
+    if N_DistCurves == 1:
+        print('Tibia and fibula have been detected.')
+        just_tibia = False
+    elif N_DistCurves > 2:
+        # loggin.warning('There are ' + str(N_DistCurves) + ' section areas.')
+        # loggin.error('This should not be the case (only tibia and possibly fibula should be there).')
+        print('There are ' + str(N_DistCurves) + ' section areas.')
+        print('This should not be the case (only tibia and possibly fibula should be there).')
+    
+    # Find the most distal point, it will be medial
+    # even if not used when tibia and fibula are available it is used in
+    # plotting
+    I_dist_fib = np.argmax(np.dot(DistTib['Points'], -Z0))
+    MostDistalMedialPt = DistTib['Points'][I_dist_fib]
+    MostDistalMedialPt = np.reshape(MostDistalMedialPt,(MostDistalMedialPt.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    
+    # compute a vector pointing from the most distal point (medial) to the
+    # centre of distal part of tibia. Points laterally for any leg side, so 
+    # it is Z_ISB for right and -Z_ISB for left side.
+    
+    if just_tibia:
+        # vector pointing laterally
+        U_tmp = (CenterVolTibDist - MostDistalMedialPt)
+    else:
+        # tibia and fibula
+        # check which area is larger (Tibia)
+        if DistCurves['1']['Area'] > DistCurves['2']['Area']:
+            # vector from tibia section to fibular section (same considerations
+            # as just_tibia = 1 using the centroid.
+            U_tmp = np.mean(DistCurves['2']['Pts'], axis = 0) - np.mean(DistCurves['1']['Pts'], axis = 0)
+        else:
+            U_tmp = np.mean(DistCurves['1']['Pts'], axis = 0) - np.mean(DistCurves['2']['Pts'], axis = 0)
+
+    return U_tmp, MostDistalMedialPt, just_tibia
 
 
 

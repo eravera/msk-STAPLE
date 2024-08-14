@@ -21,6 +21,7 @@ from matplotlib import path as mpl_path
 from scipy.optimize import curve_fit
 from scipy.optimize import nnls
 from matplotlib.patches import Ellipse
+from sklearn.decomposition import PCA
 
 
 from Public_functions import load_mesh, freeBoundary, PolyArea, inpolygon
@@ -29,7 +30,7 @@ from algorithms import pelvis_guess_CS, STAPLE_pelvis, femur_guess_CS, GIBOC_fem
     Kai2014_femur_fitSphere2FemHead, GIBOC_isolate_epiphysis, GIBOC_femur_processEpiPhysis, \
     GIBOC_femur_getCondyleMostProxPoint, GIBOC_femur_smoothCondyles, GIBOC_femur_filterCondyleSurf, \
     GIBOC_femur_ArticSurf, CS_femur_SpheresOnCondyles, CS_femur_CylinderOnCondyles, \
-    GIBOC_femur, tibia_guess_CS
+    GIBOC_femur, tibia_guess_CS, tibia_identify_lateral_direction
 
 from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHoles,\
     TriDilateMesh, cutLongBoneMesh, computeTriCoeffMorpho, TriUnite, sphere_fit, \
@@ -37,11 +38,12 @@ from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHo
     TriSliceObjAlongAxis, fitCSA, LargestEdgeConvHull, PCRegionGrowing, lsplane, \
     fit_ellipse, PtsOnCondylesFemur, TriVertexNormal, TriCurvature, TriConnectedPatch, \
     TriCloseMesh, TriDifferenceMesh, cylinderFitting, TriMesh2DProperties, plotCylinder, \
-    TriChangeCS, plotTriangLight, plotBoneLandmarks, PlanPolygonCentroid3D
+    TriChangeCS, plotTriangLight, plotBoneLandmarks, PlanPolygonCentroid3D, \
+    getLargerPlanarSect
 
 from opensim_tools import computeXYZAngleSeq
 
-from geometry import bodySide2Sign
+from geometry import bodySide2Sign, landmarkBoneGeom
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -612,9 +614,15 @@ Z0 = tibia_guess_CS(tibiaTri, 0)
 tibiaTri = tibiaTri.copy()
 side_raw = 'r'
 result_plots = 1
-debug_plots = 0
+debug_plots = 1
 in_mm = 1
-    
+
+AuxCSInfo = {}
+BCS = {}
+JCS = {}
+# Slices 1 mm apart as in Kai et al. 2014
+slices_thickness = 1
+
 if in_mm == 1:
     dim_fact = 0.001
 else:
@@ -640,12 +648,188 @@ print('Initializing method...')
 # use separated proximal and distal triangulations. Check Git history if
 # you are interested in that.
 print('Computing PCA for given geometry...')
+pca = PCA()
+pca.fit(tibiaTri['Points'])
+V_all = np.transpose(pca.components_)
 
+# guess vertical direction, pointing proximally
+U_DistToProx = tibia_guess_CS(tibiaTri, debug_plots)
 
+# divide bone in three parts and take proximal and distal 
+ProxTib, DistTib = cutLongBoneMesh(tibiaTri, U_DistToProx)
 
+# center of the volume
+_, CenterVol, InertiaMatrix, _, _ = TriInertiaPpties(tibiaTri)
 
+# checks on vertical direction
+Y0 = V_all[:,0]
+Y0 = np.reshape(Y0,(Y0.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+# NOTE: not redundant for partial models, e.g. ankle model. If this check
+# is not implemented the vertical axis is not aligned with the Z axis of
+# the images
+Y0 *= np.sign(np.dot((np.mean(ProxTib['Points'], axis=0) - np.mean(DistTib['Points'], axis=0)),Y0))
 
+# slice tibia along axis and get maximum height
+print('Slicing tibia longitudinally...')
 
+_, _, _, _, AltAtMax = TriSliceObjAlongAxis(tibiaTri, Y0, slices_thickness)
+
+# slice geometry at max area
+Curves , _, _ = TriPlanIntersect(tibiaTri, Y0, -AltAtMax)
+
+# keep just the largest outline (tibia section)
+maxAreaSection, N_curves, _ = getLargerPlanarSect(Curves)
+
+# check number of curves
+if N_curves > 2:
+    # loggin.warning('There are ' + str(N_curves) + ' section areas at the largest tibial slice.')
+    # loggin.error('This should not be the case (only tibia and possibly fibula should be there).')
+    print('There are ' + str(N_curves) + ' section areas at the largest tibial slice.')
+    print('This should not be the case (only tibia and possibly fibula should be there).')
+
+# Move the outline curve points in the inertial ref system, so the vertical
+# component [:,0] is orthogonal to a plane
+PtsCurves = np.dot(maxAreaSection['Pts'], V_all)
+
+# Fit a planar ellipse to the outline of the tibia section
+print('Fitting ellipse to largest section...')
+FittedEllipse = fit_ellipse(PtsCurves[:,1], PtsCurves[:,2])
+
+# depending on the largest axes, YElpsMax is assigned.
+# vector shapes justified by the rotation matrix used in fit_ellipse
+# R = [[cos_phi, sin_phi], 
+#       [-sin_phi, cos_phi]]
+
+if FittedEllipse['width'] > FittedEllipse['height']:
+    # horizontal ellipse
+    tmp = np.array([ 0, np.cos(FittedEllipse['phi']), -np.sin(FittedEllipse['phi'])])
+    tmp = np.reshape(tmp,(tmp.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    ZElpsMax = np.dot(V_all, tmp)
+else:
+    # vertical ellipse - get
+    tmp = np.array([ 0, np.sin(FittedEllipse['phi']), np.cos(FittedEllipse['phi'])])
+    tmp = np.reshape(tmp,(tmp.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+    ZElpsMax = np.dot(V_all, tmp)
+
+# create the ellipse
+Ux = np.array([np.cos(FittedEllipse['phi']), -np.sin(FittedEllipse['phi'])])
+Uy = np.array([np.sin(FittedEllipse['phi']), np.cos(FittedEllipse['phi'])])
+R = np.zeros((2,2))
+R[0] = Ux
+R[1] = Uy
+
+# the ellipse
+theta_r = np.linspace(0, 2*np.pi, 36)
+ellipse_x_r = FittedEllipse['width']*np.cos(theta_r)
+ellipse_y_r = FittedEllipse['height']*np.sin(theta_r)
+tmp_ellipse_r = np.zeros((2,len(ellipse_x_r)))
+tmp_ellipse_r[0,:] = ellipse_x_r
+tmp_ellipse_r[1,:] = ellipse_y_r
+
+rotated_ellipse = (R @ tmp_ellipse_r).T
+# FittedEllipse['data] = rotated_ellipse
+rotated_ellipse[:,0] = rotated_ellipse[:,0] + FittedEllipse['X0']
+rotated_ellipse[:,1] = rotated_ellipse[:,1] + FittedEllipse['Y0']
+
+# check ellipse fitting
+if debug_plots:
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    
+    ax.scatter(PtsCurves[:,1], PtsCurves[:,2], color = 'k')    
+    ax.plot(rotated_ellipse[:,0], rotated_ellipse[:,1], color = 'green')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    
+
+# centre of ellipse back to medical images reference system
+tmp_center = np.array([np.mean(PtsCurves[:,0]), FittedEllipse['X0'], FittedEllipse['Y0']])
+tmp_center = np.reshape(tmp_center,(tmp_center.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+CenterEllipse = np.dot(V_all, tmp_center)
+
+# identify lateral direction
+U_tmp, MostDistalMedialPt, just_tibia = tibia_identify_lateral_direction(DistTib, Y0)
+
+if just_tibia:
+    m_col = 'red'
+else:
+    m_col = 'blue'
+
+# adjust for body side, so that U_tmp is aligned as Z_ISB
+U_tmp = side_sign*U_tmp
+
+# making Y0/U_temp normal to Z0 (still points laterally)
+Z0_temp = preprocessing.normalize(U_tmp - np.dot(U_tmp.T, Y0)*Y0, axis=0)
+
+# here the assumption is that Y0 has correct m-l orientation               
+ZElpsMax *= np.sign(np.dot(Z0_temp.T, ZElpsMax))
+
+tmp_pts = np.ones((len(rotated_ellipse), 3))
+tmp_pts[:,1:] = rotated_ellipse
+AuxCSInfo['EllipsePts'] = np.dot(V_all, tmp_pts.T).T
+
+# common axes: X is orthog to Y and Z, in this case ARE mutually perpend
+Y = preprocessing.normalize(Y0, axis=0)
+Z = preprocessing.normalize(ZElpsMax, axis=0)
+X = np.cross(Y.T, Z.T).T
+
+# z for body ref system
+Z_cs = np.cross(X.T, Y.T).T
+
+# segment reference system
+BCS['CenterVol'] = CenterVol
+BCS['Origin'] = CenterEllipse
+BCS['InertiaMatrix'] = InertiaMatrix
+BCS['V'] = np.zeros((3,3))
+BCS['V'][:,0] = X[:,0]
+BCS['V'][:,1] = Y[:,0]
+BCS['V'][:,2] = Z_cs[:,0]
+
+# define the knee reference system
+joint_name = 'knee_' + side_low
+# define knee joint
+Ydp_knee = np.cross(Z.T, X.T).T
+JCS[joint_name] = {}
+JCS[joint_name]['V'] = np.zeros((3,3))
+JCS[joint_name]['V'][:,0] = X[:,0]
+JCS[joint_name]['V'][:,1] = Ydp_knee[:,0]
+JCS[joint_name]['V'][:,2] = Z[:,0]
+JCS[joint_name]['Origin'] = CenterEllipse
+
+# NOTE THAT CS['V'] and JCS['knee_r']['V'] are the same, so the distinction is 
+# here purely formal. This is because all axes are perpendicular.
+JCS[joint_name]['child_orientation'] = computeXYZAngleSeq(JCS[joint_name]['V'])
+JCS[joint_name]['child_location'] = CenterEllipse*dim_fact
+
+# landmark bone according to CS (only Origin and CS.V are used)
+tibiaBL = landmarkBoneGeom(tibiaTri, BCS, 'tibia_' + side_low)
+
+if just_tibia == False:
+    # add landmark as 3x1 vector
+    tibiaBL[side_low.upper() + 'LM'] = MostDistalMedialPt
+
+label_switch = 1
+# plot reference systems
+if result_plots:
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection = '3d')
+    
+    ax.set_title('Kai2014 | bone: tibia | side: ' + side_low)
+    
+    plotTriangLight(tibiaTri, BCS, ax)
+    quickPlotRefSystem(BCS, ax)
+    quickPlotRefSystem(JCS[joint_name], ax)
+    
+    # plot markers and labels
+    plotBoneLandmarks(tibiaBL, ax, label_switch)
+    
+    # plot largest section
+    ax.plot(maxAreaSection['Pts'][:,0], maxAreaSection['Pts'][:,1], maxAreaSection['Pts'][:,2], color='red', linestyle='dashed', linewidth=2)
+    plotDot(MostDistalMedialPt, ax, m_col, 4)
+        
+    ax.set_box_aspect([1,3,1])
 
 
 

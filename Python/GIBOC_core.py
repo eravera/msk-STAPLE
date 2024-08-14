@@ -1637,7 +1637,23 @@ def PlanPolygonCentroid3D(Pts):
     
     return Centroid, Area
     
+# -----------------------------------------------------------------------------
+def getLargerPlanarSect(Curves = {}):
+    # -------------------------------------------------------------------------
+    # gets the larger section in a set of curves. Use mostly by GIBOC_tibia
+    # -------------------------------------------------------------------------
     
+    N_curves = len(Curves)
+    Areas = []
+    
+    # check to use just the tibial curve, as in GIBOK
+    Areas = [Curves[key]['Area'] for key in Curves]
+    
+    ind_max_area = np.argmax(Areas)
+    
+    Curve = Curves[list(Curves.keys())[ind_max_area]]
+    
+    return Curve, N_curves, Areas
 
 
 

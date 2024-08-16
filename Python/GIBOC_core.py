@@ -1725,12 +1725,13 @@ def plotTriangLight(Triang = {}, CS = {}, ax = None, alpha = 0.7):
            
     # define the lighting
     if CS:
+        # CS = CS.copy()
         # if there are no axes but there is a pose matrix, use the matrix as 
         # reference
         if not 'Y' in CS and 'V' in CS:
-            CS['X'] = CS['V'][0]
-            CS['Y'] = CS['V'][1]
-            CS['Z'] = CS['V'][2]
+            CS['X'] = CS['V'][:,0]
+            CS['Y'] = CS['V'][:,1]
+            CS['Z'] = CS['V'][:,2]
         
         # handle lighting of objects
         # Create light source object.
@@ -1975,6 +1976,7 @@ def fit_ellipse(x, y):
         
     X = np.array(list(zip(x, y)))
     reg = LsqEllipse().fit(X)
+    # center, width, height, phi = reg.as_parameters()
     center, width, height, phi = reg.as_parameters()
         
     ellipse_t['phi'] = phi

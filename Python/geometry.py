@@ -203,16 +203,26 @@ def getBoneLandmarkList(bone_name):
         LandmarkInfo['0'] = ['LKNE', 'z', 'min', 'distal']
         LandmarkInfo['1'] = ['LMFC', 'z', 'max', 'distal']
         LandmarkInfo['2'] = ['LTRO', 'z', 'min', 'proximal']
+    # elif bone_name == 'tibia_r':
+    #     LandmarkInfo['0'] = ['RTTB', 'x', 'max', 'proximal']
+    #     LandmarkInfo['1'] = ['RHFB', 'z', 'max', 'proximal']
+    #     LandmarkInfo['2'] = ['RANK', 'z', 'max', 'distal']
+    #     LandmarkInfo['3'] = ['RMMA', 'z', 'min', 'distal']
+    # elif bone_name == 'tibia_l':
+    #     LandmarkInfo['0'] = ['LTTB', 'x', 'max', 'proximal']
+    #     LandmarkInfo['1'] = ['LHFB', 'z', 'max', 'proximal']
+    #     LandmarkInfo['2'] = ['LANK', 'z', 'max', 'distal']
+    #     LandmarkInfo['3'] = ['LMMA', 'z', 'min', 'distal']
     elif bone_name == 'tibia_r':
-        LandmarkInfo['0'] = ['RTTB', 'x', 'max', 'proximal']
-        LandmarkInfo['1'] = ['RHFB', 'z', 'max', 'proximal']
-        LandmarkInfo['2'] = ['RANK', 'z', 'max', 'distal']
-        LandmarkInfo['3'] = ['RMMA', 'z', 'min', 'distal']
+        LandmarkInfo['0'] = ['RTTB', 'z', 'min', 'proximal']
+        LandmarkInfo['1'] = ['RHFB', 'x', 'max', 'proximal']
+        LandmarkInfo['2'] = ['RANK', 'x', 'max', 'distal']
+        LandmarkInfo['3'] = ['RMMA', 'x', 'min', 'distal']
     elif bone_name == 'tibia_l':
-        LandmarkInfo['0'] = ['LTTB', 'x', 'max', 'proximal']
-        LandmarkInfo['1'] = ['LHFB', 'z', 'max', 'proximal']
-        LandmarkInfo['2'] = ['LANK', 'z', 'max', 'distal']
-        LandmarkInfo['3'] = ['LMMA', 'z', 'min', 'distal']
+        LandmarkInfo['0'] = ['LTTB', 'z', 'min', 'proximal']
+        LandmarkInfo['1'] = ['LHFB', 'x', 'max', 'proximal']
+        LandmarkInfo['2'] = ['LANK', 'x', 'max', 'distal']
+        LandmarkInfo['3'] = ['LMMA', 'x', 'min', 'distal']
     elif bone_name == 'patella_r':
         LandmarkInfo['0'] = ['RLOW', 'y', 'min', 'distal']
     elif bone_name == 'patella_l':

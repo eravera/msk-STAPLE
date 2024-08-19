@@ -31,7 +31,8 @@ from GIBOC_core import TriChangeCS, \
                          quickPlotRefSystem
                         
 # from algorithms import STAPLE_pelvis, \
-#                         GIBOC_femur
+#                         GIBOC_femur, \
+#                          Kai2014_tibia
 
 # -----------------------------------------------------------------------------
 def inferBodySideFromAnatomicStruct(anat_struct):
@@ -203,26 +204,16 @@ def getBoneLandmarkList(bone_name):
         LandmarkInfo['0'] = ['LKNE', 'z', 'min', 'distal']
         LandmarkInfo['1'] = ['LMFC', 'z', 'max', 'distal']
         LandmarkInfo['2'] = ['LTRO', 'z', 'min', 'proximal']
-    # elif bone_name == 'tibia_r':
-    #     LandmarkInfo['0'] = ['RTTB', 'x', 'max', 'proximal']
-    #     LandmarkInfo['1'] = ['RHFB', 'z', 'max', 'proximal']
-    #     LandmarkInfo['2'] = ['RANK', 'z', 'max', 'distal']
-    #     LandmarkInfo['3'] = ['RMMA', 'z', 'min', 'distal']
-    # elif bone_name == 'tibia_l':
-    #     LandmarkInfo['0'] = ['LTTB', 'x', 'max', 'proximal']
-    #     LandmarkInfo['1'] = ['LHFB', 'z', 'max', 'proximal']
-    #     LandmarkInfo['2'] = ['LANK', 'z', 'max', 'distal']
-    #     LandmarkInfo['3'] = ['LMMA', 'z', 'min', 'distal']
     elif bone_name == 'tibia_r':
-        LandmarkInfo['0'] = ['RTTB', 'z', 'min', 'proximal']
-        LandmarkInfo['1'] = ['RHFB', 'x', 'max', 'proximal']
-        LandmarkInfo['2'] = ['RANK', 'x', 'max', 'distal']
-        LandmarkInfo['3'] = ['RMMA', 'x', 'min', 'distal']
+        LandmarkInfo['0'] = ['RTTB', 'x', 'max', 'proximal']
+        LandmarkInfo['1'] = ['RHFB', 'z', 'max', 'proximal']
+        LandmarkInfo['2'] = ['RANK', 'z', 'max', 'distal']
+        LandmarkInfo['3'] = ['RMMA', 'z', 'min', 'distal']
     elif bone_name == 'tibia_l':
-        LandmarkInfo['0'] = ['LTTB', 'z', 'min', 'proximal']
-        LandmarkInfo['1'] = ['LHFB', 'x', 'max', 'proximal']
-        LandmarkInfo['2'] = ['LANK', 'x', 'max', 'distal']
-        LandmarkInfo['3'] = ['LMMA', 'x', 'min', 'distal']
+        LandmarkInfo['0'] = ['LTTB', 'x', 'max', 'proximal']
+        LandmarkInfo['1'] = ['LHFB', 'z', 'max', 'proximal']
+        LandmarkInfo['2'] = ['LANK', 'z', 'max', 'distal']
+        LandmarkInfo['3'] = ['LMMA', 'z', 'min', 'distal']
     elif bone_name == 'patella_r':
         LandmarkInfo['0'] = ['RLOW', 'y', 'min', 'distal']
     elif bone_name == 'patella_l':
@@ -544,17 +535,17 @@ def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE',
             BCS['femur'], JCS['femur'], BL['femur'] = \
                 GIBOC_femur(triGeomBoneSet['femur_name'], side, triGeomBoneSet[6:], result_plots, debug_plots, in_mm)
     
-    # # ---- TIBIA -----
-    # if tibia_name in triGeomBoneSet:
-    #     # if 'GIBOC' in triGeomBoneSet:
-    #     #     BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
-    #     #         GIBOC_tibia(triGeomBoneSet['tibia_name'], side, triGeomBoneSet[6:], result_plots, debug_plots, in_mm)
-    #     if 'Kai2014' in triGeomBoneSet:
-    #         BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
-    #             Kai2014_tibia(triGeomBoneSet['tibia_name'], side, result_plots, debug_plots, in_mm)
-    #     else:
-    #         BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
-    #             Kai2014_tibia(triGeomBoneSet['tibia_name'], side, result_plots, debug_plots, in_mm)
+    # ---- TIBIA -----
+    if tibia_name in triGeomBoneSet:
+        # if 'GIBOC' in triGeomBoneSet:
+        #     BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
+        #         GIBOC_tibia(triGeomBoneSet['tibia_name'], side, triGeomBoneSet[6:], result_plots, debug_plots, in_mm)
+        if 'Kai2014' in triGeomBoneSet:
+            BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
+                Kai2014_tibia(triGeomBoneSet['tibia_name'], side, result_plots, debug_plots, in_mm)
+        else:
+            BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
+                Kai2014_tibia(triGeomBoneSet['tibia_name'], side, result_plots, debug_plots, in_mm)
     
     
     

@@ -2351,9 +2351,12 @@ def Kai2014_tibia(tibiaTri, side_raw = 'r', result_plots = 1, debug_plots = 0, i
     BCS['Origin'] = CenterEllipse
     BCS['InertiaMatrix'] = InertiaMatrix
     BCS['V'] = np.zeros((3,3))
-    BCS['V'][:,0] = X[:,0]
+    # BCS['V'][:,0] = X[:,0]
+    # BCS['V'][:,1] = Y[:,0]
+    # BCS['V'][:,2] = Z_cs[:,0]
+    BCS['V'][:,0] = -Z_cs[:,0]
     BCS['V'][:,1] = Y[:,0]
-    BCS['V'][:,2] = Z_cs[:,0]
+    BCS['V'][:,2] = X[:,0]
 
     # define the knee reference system
     joint_name = 'knee_' + side_low
@@ -2361,9 +2364,12 @@ def Kai2014_tibia(tibiaTri, side_raw = 'r', result_plots = 1, debug_plots = 0, i
     Ydp_knee = np.cross(Z.T, X.T).T
     JCS[joint_name] = {}
     JCS[joint_name]['V'] = np.zeros((3,3))
-    JCS[joint_name]['V'][:,0] = X[:,0]
+    # JCS[joint_name]['V'][:,0] = X[:,0]
+    # JCS[joint_name]['V'][:,1] = Ydp_knee[:,0]
+    # JCS[joint_name]['V'][:,2] = Z[:,0]
+    JCS[joint_name]['V'][:,0] = -Z[:,0]
     JCS[joint_name]['V'][:,1] = Ydp_knee[:,0]
-    JCS[joint_name]['V'][:,2] = Z[:,0]
+    JCS[joint_name]['V'][:,2] = X[:,0]
     JCS[joint_name]['Origin'] = CenterEllipse
 
     # NOTE THAT CS['V'] and JCS['knee_r']['V'] are the same, so the distinction is 

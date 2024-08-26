@@ -571,6 +571,20 @@ tibiaTri = load_mesh(ruta + 'Python/tibia_new_simplify.stl')
 BCS['tibia'], JCS['tibia'], BL['tibia'], AuxCSInfo['tibia'] = Kai2014_tibia(tibiaTri, 'r', 1, 1)
 
 
+#%% ----------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1655,6 +1655,54 @@ def getLargerPlanarSect(Curves = {}):
     
     return Curve, N_curves, Areas
 
+# -----------------------------------------------------------------------------
+def computeMassProperties_Mirtich1996(Tri = {}):
+    # -------------------------------------------------------------------------
+    # Script that given the vertices v and facets of a triangular mesh
+    # calculates the inertial properties (Volume, Mass, COM and Inertia matrix
+    # based on: Mirtich, B., 1996. Fast and accurate computation of polyhedral 
+    # mass properties. journal of graphics tools 1, 31-50. The algorithm is not
+    # the generic one presented in that publication, which works for any kind
+    # of polihedron, but is optimized to work with triangular meshes. The
+    # implementation was taken from Eberly, D., 2003. Polyhedral mass 
+    # properties (revisited). AVAILABLE AT: 
+    # https://www.geometrictools.com/Documentation/PolyhedralMassProperties.pdf
+    # 
+    # VERIFICATION: this code yealds the same values as NMSBuilder for a femur
+    # and a sphere. (Exactly the same values, but it's faster!)
+    # 
+    # INPUT: 
+    # Tri: triangulation dic including the coordinates of n points and 
+    # connectivity list collecting the indices of the vertices of
+    # each facet of the mesh.
+    # 
+    # OUTPUT:   
+    # MassInfo['mass'] = mass
+    # MassInfo['COM'] = COM
+    # MassInfo['Imat'] = I (inertia matrix calculated at COM)
+    # MassInfo['Ivec'] = inertial vector for use in OpenSim
+    # -------------------------------------------------------------------------
+
+    MassInfo = {}
+    # feedback to the user
+    # I tried a waitbar, but the script was too slow! 
+    
+    print('Calculating Inertia properties...')
+    
+    _, COM, I, _, mass = TriInertiaPpties(Tri)
+    
+    # inertial vector (for use in OpenSim
+    Iv = np.array([I[0,0], I[1,1], I[2,2], I[0,1], I[0,2], I[1,2]])
+    
+    # Collecting all results together
+    MassInfo['mass'] = mass
+    MassInfo['COM'] = COM
+    MassInfo['Imat'] = I
+    MassInfo['Ivec'] = Iv
+    
+    return MassInfo
+
+
 
 
 

@@ -134,7 +134,7 @@ def createTriGeomSet(aTriGeomList, geom_file_folder):
             # tell user all went well
             print('Set of triangulated geometries created in ' + str(np.round(time.time() - t0, 4)))
         
-    return 0
+    return triGeomSet
 
 # -----------------------------------------------------------------------------
 def bodySide2Sign(side_raw):

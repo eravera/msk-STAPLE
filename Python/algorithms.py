@@ -1896,8 +1896,8 @@ def GIBOC_femur(femurTri, side_raw = 'r', fit_method = 'cylinder', result_plots 
         #     plotEllipsoid(AuxCSInfo['ellips_centre_med'], AuxCSInfo['ellips_radii_med'], AuxCSInfo['ellips_evec_med'], ax3, alpha = alpha, color = 'red')
         #     plotEllipsoid(AuxCSInfo['ellips_centre_lat'], AuxCSInfo['ellips_radii_lad'], AuxCSInfo['ellips_evec_lat'], ax3, alpha = alpha, color = 'blue')
         else:
-            # loggin.error('GIBOC_femur.m ''method'' input has value: ''spheres'', ''cylinder'' or ''ellipsoids''.')
-            print('GIBOC_femur.m ''method'' input has value: ''spheres'', ''cylinder'' or ''ellipsoids''.')
+            # loggin.error('GIBOC_femur.py "method" input has value: "spheres", "cylinder" or "ellipsoids".')
+            print('GIBOC_femur.py "method" input has value: "spheres", "cylinder" or "ellipsoids".')
         # Remove grid
         ax3.grid(False)
         ax3.set_box_aspect([1,1,1])

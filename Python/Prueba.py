@@ -41,9 +41,10 @@ from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHo
     TriChangeCS, plotTriangLight, plotBoneLandmarks, PlanPolygonCentroid3D, \
     getLargerPlanarSect
 
-from opensim_tools import computeXYZAngleSeq
+from opensim_tools import computeXYZAngleSeq, getJointParams, getJointParams3DoFKnee
 
-from geometry import bodySide2Sign, landmarkBoneGeom
+from geometry import bodySide2Sign, landmarkBoneGeom, compileListOfJointsInJCSStruct, \
+    jointDefinitions_auto2020
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -428,14 +429,16 @@ for pos in range(i+2):
 # plt.show()
 
 #%% prueba de funcion pelvis_gess_CS
-
+BCS = {}
+JCS = {}
+BL = {}
 # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
-# pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
+pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
 # pelvisTri = load_mesh(ruta + 'Python/pelvis_new.stl')
 
 # RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
 
-# STAPLE_pelvis(pelvisTri)
+BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
 
 
 # plotDot(TMPtriangle['Points'][10,:], 'k', 7)
@@ -502,11 +505,11 @@ for pos in range(i+2):
 femurTri = load_mesh(ruta + 'Python/femur_new_simplify.stl')
 # # femurTri = load_mesh(ruta + 'Python/Femur_predicted.stl')
 # femur_name = 'femur_r'
-BCS = {}
-JCS = {}
-BL = {}
+# BCS = {}
+# JCS = {}
+# BL = {}
 AuxCSInfo = {}
-BCS['femur'], JCS['femur'], BL['femur'], _, AuxCSInfo['femur'] = GIBOC_femur(femurTri, 'r', 'cylinder', 1, 1, 1)
+BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_femur(femurTri, 'r', 'cylinder', 0, 0)
 
 #%% prueba de funcion femur_guess_CS
 
@@ -568,23 +571,166 @@ BCS['femur'], JCS['femur'], BL['femur'], _, AuxCSInfo['femur'] = GIBOC_femur(fem
 # aca aranca el codigo:
 tibiaTri = load_mesh(ruta + 'Python/tibia_new_simplify.stl')
 
-BCS['tibia'], JCS['tibia'], BL['tibia'], AuxCSInfo['tibia'] = Kai2014_tibia(tibiaTri, 'r', 1, 1)
+BCS['tibia_r'], JCS['tibia_r'], BL['tibia_r'], AuxCSInfo['tibia_r'] = Kai2014_tibia(tibiaTri, 'r', 0)
 
 
 #%% ----------------------------------------------------------------------
 
+# def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParamFile = 'getJointParams'):
+    # -------------------------------------------------------------------------
+    # Create the lower limb joints based on assigned joint coordinate systems
+    # stored in a structure and adds them to an existing OpenSim model.
+    # 
+    # Inputs:
+    # osimModel - an OpenSim model of the lower limb to which we want to add
+    # the lower limb joints.
+    # 
+    # JCS - a dictionary created using the function createLowerLimbJoints(). 
+    # This structure includes as fields the elements to generate a 
+    # CustomJoint using the createCustomJointFromStruct function. See these 
+    # functions for details.
+    # 
+    # joint_defs - optional input specifying the joint definitions used for
+    # arranging and finalizing the partial reference systems obtained
+    # from morphological analysis of the bones. Valid values:
+    # - 'Modenese2018': define the same reference systems described in 
+    # Modenese et al. J Biomech (2018).
+    # - 'auto2020': use the reference systems from morphological analysis as 
+    # much as possible. See Modenese and Renault, JBiomech 2020 for a comparison.
+    # - any definition you want to add. You just need to write a function and 
+    # include it in the "switch" structure where joints are defined. Your 
+    # implementation will be check for completeness by the 
+    # verifyJointStructCompleteness.m function.
+    # 
+    # jointParamFile - optional input specifying the name of a function 
+    # including the parameters of the joints to build. Default value is:
+    # - 'getJointParams.py': same joint parameters as the gait2392
+    # standard model.
+    # - 'getJointParams3DoFKnee.py': file available from the advanced examples, 
+    # shows how to create a 3 dof knee joint.
+    # - any other joint parameters you want to implement. Be careful because 
+    # joint definitions and input bone will have to match:
+    # for example you cannot create a 2 dof ankle joint and
+    # exclude a subtalar joint if you are providing a talus and
+    # calcn segments, as otherwise they would not have any joint.
+    # 
+    # Outputs:
+    # none - the joints are added to the input OpenSim model.
+    # -------------------------------------------------------------------------
 
+joint_defs = 'auto2020'
+jointParamFile = 'getJointParams'
+# ---------------------------------------
+# ---------------------------------------
 
+# printout
+print('---------------------')
+print('   CREATING JOINTS   ')
+print('---------------------')
 
+# add ground body to JCS together with standard ground_pelvis joint.
+# if model is partial, it will be modified.
+JCS['ground'] = {}
+JCS['ground']['ground_pelvis'] = {'parentName': 'ground', \
+                                  'parent_location': np.zeros((3,1)), \
+                                  'parent_orientation': np.zeros((1,3))}
 
+# based on JCS make a list of bodies and joints
+joint_list = compileListOfJointsInJCSStruct(JCS)
 
+# TRANSFORM THE JCS FROM MORPHOLOGYCAL ANALYSIS IN JOINT DEFINITION
+# complete the joints parameters
+print('Checking parameters from morphological analysis:')
 
+# useful list
+fields_v = ['parent_location','parent_orientation','child_location', 'child_orientation']
 
+if jointParamFile != 'getJointParams':
+    jointParamFuncName = jointParamFile
+else:
+    print('WARNING: Specified function ' + jointParamFile + 'for joint parameters was not found. Using default "getJointParams.py"')
+    jointParamFuncName = 'getJointParams'
 
+jointStruct = {}
+for cur_joint_name in joint_list:
+    # getting joint parameters using the desired joint param function
+    if jointParamFuncName == 'getJointParams':
+        jointStructTemp = getJointParams(cur_joint_name)
+    elif jointParamFuncName == 'getJointParams3DoFKnee':
+        jointStructTemp = getJointParams3DoFKnee(cur_joint_name)
+    
+    # STEP1: check if parent and child body are available
+    parent_name = jointStructTemp['parentName']
+    child_name  = jointStructTemp['childName']
 
+    # the assumption is that if, given a joint from the analysis, parent is
+    # missing, that's because the model is partial proximally and will be
+    # connected to ground. If child is missing, instead, the model if
+    # partial distally and the chain will be interrupted there.
+    if parent_name not in JCS:
+        if child_name in JCS:
+            print('Partial model detected proximally:')
+            
+            # get appropriate parameters for the new joint
+            jointStructTemp = getJointParams('free_to_ground', child_name)
+            
+            # adjusting joint parameters
+            old_joint_name = cur_joint_name
+            new_cur_joint_name = jointStructTemp['jointName']
+            parent_name = jointStructTemp['parentName']
+            print('   * Connecting ' + child_name + ' to ground with ' + new_cur_joint_name + ' free joint.')
+            
+            # defines the new joints for parent/child location and orientation
+            JCS['ground'][new_cur_joint_name] = JCS['ground']['ground_pelvis']
+            JCS['child_name'][new_cur_joint_name] = JCS['child_name'][old_joint_name]
+        else:
+            new_cur_joint_name = cur_joint_name
+            print('ERROR: Incorrect definition of joint ' + jointStructTemp['jointName'] + ': missing both parent and child bones from analysis.')
+            # loggin.error('Incorrect definition of joint ' + jointStructTemp['jointName'] + ': missing both parent and child bones from analysis.')
+    else:
+        new_cur_joint_name = cur_joint_name
+    
+    # if there is a parent but not a child body then the model is partial
+    # distally, i.e. it is missing some distal body/bodies.
+    if child_name not in JCS:
+        if parent_name in JCS:
+            print('Partial model detected distally...')
+            print('* Deleting incomplete joint "' + new_cur_joint_name + '"')
+            continue
+        else:
+            print('ERROR: Incorrect definition of joint ' + jointStructTemp['jointName'] + ': missing both parent and child bones from analysis.')
+            # loggin.error('Incorrect definition of joint ' + jointStructTemp['jointName'] + ': missing both parent and child bones from analysis.')
+    
+    # display joint details
+    print('* ' + new_cur_joint_name)
+    print('   - parent: ' + parent_name)
+    print('   - child: ' + child_name)
+    
+    # create an appropriate jointStructTemp from the info available in JCS
+    # body_list = list(JCS.keys())
+    for cur_body_name in JCS:
+        if new_cur_joint_name in JCS[cur_body_name]:
+            joint_info = JCS[cur_body_name][new_cur_joint_name]
+            for key in fields_v:
+                if key in joint_info:
+                    jointStructTemp[key] = joint_info[key]
+        else:
+            continue
+    
+    # store the resulting parameters for each joint to the final dictionary
+    jointStruct[new_cur_joint_name] = jointStructTemp
+                
+# JOINT DEFINITIONS
+print('Applying joint definitions: ' + joint_defs)
 
-
-
+if joint_defs == 'auto2020':
+    jointStruct = jointDefinitions_auto2020(JCS, jointStruct)
+# elif joint_defs == 'Modenese2018':
+#     # joint definitions of Modenese et al.
+#     jointStruct = jointDefinitions_Modenese2018(JCS, jointStruct)
+else:
+    print('createOpenSimModelJoints.py You need to define joint definitions')
+    # loggin.error('createOpenSimModelJoints.py You need to define joint definitions')
 
 
 

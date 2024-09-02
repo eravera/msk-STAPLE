@@ -21,6 +21,7 @@ from pathlib import Path
 import sys
 import time
 import logging
+from sklearn import preprocessing
 import matplotlib.pyplot as plt
 
 
@@ -32,7 +33,9 @@ from GIBOC_core import TriChangeCS, \
                         
 # from algorithms import STAPLE_pelvis, \
 #                         GIBOC_femur, \
-#                          Kai2014_tibia
+#                           Kai2014_tibia
+
+from opensim_tools import computeXYZAngleSeq
 
 # -----------------------------------------------------------------------------
 def inferBodySideFromAnatomicStruct(anat_struct):
@@ -383,11 +386,6 @@ def landmarkBoneGeom(TriObj, CS, bone_name, debug_plots = 0):
         Landmarks[cur_BL_name] = CS['CenterVol'] + np.dot(CS['V'],local_BL)
         
     return Landmarks
-    
-    
-    
-    
-    
 
 # -----------------------------------------------------------------------------
 def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE', algo_femur = 'GIBOC-cylinder', algo_tibia = 'Kai2014', result_plots = 1, debug_plots = 0, in_mm = 1):
@@ -547,11 +545,298 @@ def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE',
             BCS[tibia_name], JCS[tibia_name], BL[tibia_name] = \
                 Kai2014_tibia(triGeomBoneSet['tibia_name'], side, result_plots, debug_plots, in_mm)
     
-    
-    
-    
-    return 0
 
+    return JCS, BL, BCS
 
+# -----------------------------------------------------------------------------
+def compileListOfJointsInJCSStruct(JCS = {}):
+    # -------------------------------------------------------------------------
+    # Create a list of joints that can be modelled from the structure that 
+    # results from morphological analysis.
+    # 
+    # Inputs:
+    # JCS - dictionary with the joint parameters produced by the morphological 
+    # analyses of processTriGeomBoneSet. Not all listed joints are
+    # actually modellable, in the sense that the parent and child
+    # reference systems might not be present, the model might be incomplete etc.
+    # 
+    # Outputs:
+    # joint_list - a list of unique elements. Each element is the name of a 
+    # joint present in the JCS structure.
+    # -------------------------------------------------------------------------
+    joint_list = []
+    
+    for body in JCS:
+        joint_list += [joint for joint in JCS[body] if joint not in joint_list]
+
+    return joint_list
+
+# -----------------------------------------------------------------------------
+def jointDefinitions_auto2020(JCS = {}, jointStruct = {}):
+    # -------------------------------------------------------------------------
+    # Define the orientation of the parent reference system in the ankle joint 
+    # using the ankle axis as Z axis and the long axis of the tibia 
+    # (made perpendicular to Z) as Y axis. X defined by cross-product. The 
+    # ankle is the only joint that is not defined neither in parent or child 
+    # in the "default" joint definition named 'auto2020'. 
+    # 
+    # Inputs:
+    # JCS - dictionary with the joint parameters produced by the morphological 
+    # analyses of processTriGeomBoneSet. Not all listed joints are
+    # actually modellable, in the sense that the parent and child
+    # reference systems might not be present, the model might be incomplete etc.
+    # In this function only the field `V` relative to talus and tibia will be 
+    # recalled.
+    # 
+    # jointStruct - Dictionary including all the reference parameters that will
+    # be used to generate an OpenSim JointSet.
+    # 
+    # Outputs:
+    # jointStruct - updated dicttionary with a newly defined ankle joint parent
+    # ankle V.
+    # -------------------------------------------------------------------------
+    
+    side_low = inferBodySideFromAnatomicStruct(JCS)
+    
+    # bone names
+    tibia_name = 'tibia_' + side_low
+    talus_name = 'talus_' + side_low
+    
+    # joint names
+    ankle_name = 'ankle_' + side_low
+    knee_name = 'knee_' + side_low
+    
+    # joint params: JCS[bone_name] will access the geometrical information
+    # from the morphological analysis
+    
+    # take Z from ankle joint (axis of rotation)
+    if talus_name in JCS and tibia_name in JCS:
+        Zpar = JCS[talus_name][ankle_name]['V'][:,2]
+        Zpar = np.reshape(Zpar,(Zpar.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+        Ytemp = JCS[tibia_name][knee_name]['V'][:,1]
+        Ytemp = np.reshape(Ytemp,(Ytemp.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+        
+        # Y and Z orthogonal
+        Ypar = preprocessing.normalize(Ytemp - Zpar*np.dot(Zpar, Ytemp), axis =0)
+        Xpar = preprocessing.normalize(np.cross(Ypar, Zpar), axis =0)
+        
+        # assigning pose matrix and parent orientation
+        jointStruct[ankle_name] = {}
+        jointStruct[ankle_name]['V'] = np.zeros((3,3))
+        jointStruct[ankle_name]['V'][:,0] = Xpar[:,0]
+        jointStruct[ankle_name]['V'][:,1] = Ypar[:,0]
+        jointStruct[ankle_name]['V'][:,2] = Zpar[:,0]
+        
+        jointStruct[ankle_name]['parent_orientation'] = computeXYZAngleSeq(jointStruct[ankle_name]['V'])
+    else:
+        return jointStruct
+    
+    return jointStruct
+
+# -----------------------------------------------------------------------------
+def jointDefinitions_Modenese2018(JCS = {}, jointStruct = {}):
+    # -------------------------------------------------------------------------
+    # Define the orientation of lower limb joints as in Modenese et al. 
+    # JBiomech 2018, 17;73:108-118 https://doi.org/10.1016/j.jbiomech.2018.03.039
+    # Required for the comparisons presented in Modenese and Renault, JBiomech
+    # 2020. 
+    # 
+    # Inputs:
+    # JCS - dictionary with the joint parameters produced by the morphological 
+    # analyses of processTriGeomBoneSet. Not all listed joints are
+    # actually modellable, in the sense that the parent and child
+    # reference systems might not be present, the model might be incomplete etc.
+    # 
+    # jointStruct - Dictionary including all the reference parameters that will
+    # be used to generate an OpenSim CustomJoints.
+    # 
+    # Outputs:
+    # jointStruct - updated jointStruct with the joints defined as in
+    # Modenese2018, rather than connected directly using the joint
+    # coordinate system computed in processTriGeomBoneSet.py plus the
+    # default joint definition available in jointDefinitions_auto2020.py
+    # -------------------------------------------------------------------------
+    
+    side_low = inferBodySideFromAnatomicStruct(JCS)
+    
+    # joint names
+    knee_name = 'knee_' + side_low
+    ankle_name = 'ankle_' + side_low
+    subtalar_name = 'subtalar_' + side_low
+    
+    # segments names
+    femur_name = 'femur_' + side_low
+    tibia_name = 'tibia_' + side_low
+    talus_name = 'talus_' + side_low
+    calcn_name = 'calcn_' + side_low
+    talus_name = 'talus_' + side_low
+    mtp_name = 'mtp_' + side_low
+    
+    if talus_name in JCS:
+        TalusDict = JCS[talus_name]
+        
+        if tibia_name in JCS:
+            TibiaDict = JCS[tibia_name]
+            
+            if femur_name in JCS:
+                FemurDict = JCS[femur_name]
+                
+                # knee child orientation
+                # ---------------------
+                # Z aligned like the medio-lateral femoral joint, e.g. axis of cylinder
+                # Y aligned with the tibial axis (v betw origin of ankle and knee)
+                # X from cross product
+                # ---------------------
+                
+                # take Z from knee joint (axis of rotation)
+                Zparent  = FemurDict[knee_name]['V'][:,2]
+                Zparent = np.reshape(Zparent,(Zparent.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+                # take line joining talus and knee centres
+                TibiaDict[knee_name]['Origin'] = FemurDict[knee_name]['Origin']
+                # vertical axis joining knee and ankle joint centres (same used for ankle
+                # parent)
+                Ytemp = (TibiaDict[knee_name]['Origin'] - FemurDict[ankle_name]['Origin'])
+                Ytemp /= np.linalg.norm(TibiaDict[knee_name]['Origin'] - FemurDict[ankle_name]['Origin'], axis=0)
+                # make Y and Z orthogonal
+                Yparent = preprocessing.normalize(Ytemp - Zparent*np.dot(Zparent, Ytemp), axis =0)
+                Xparent = preprocessing.normalize(np.cross(Ytemp, Zparent), axis =0)
+                # assigning pose matrix and child orientation
+                tmp_V = np.zeros((3,3))
+                tmp_V[:,0] = Xparent[:,0]
+                tmp_V[:,1] = Yparent[:,0]
+                tmp_V[:,2] = Zparent[:,0]
+                
+                jointStruct[knee_name]['child_orientation'] = computeXYZAngleSeq(tmp_V)
+                
+            # Ankle parent orientation
+            # ---------------------
+            # Z aligned like the cilinder of the talar throclear
+            # Y aligned with the tibial axis (v betw origin of ankle and knee)
+            # X from cross product
+            # ---------------------
+            # take Z from ankle joint (axis of rotation)
+            Zparent = TalusDict[ankle_name]['V'][:,2]
+            Zparent = np.reshape(Zparent,(Zparent.size, 1)) # convert 1d (3,) to 2d (3,1) vector
+            # take line joining talus and knee centres
+            Ytibia = (TibiaDict[knee_name]['Origin'] - TalusDict[ankle_name]['Origin'])
+            Ytibia /= np.linalg.norm(TibiaDict[knee_name]['Origin'] - TalusDict[ankle_name]['Origin'], axis=0)
+            # make Y and Z orthogonal
+            Yparent = preprocessing.normalize(Ytibia - Zparent*np.dot(Zparent, Ytibia), axis =0)
+            Xparent = preprocessing.normalize(np.cross(Ytibia, Zparent), axis =0)
+            # assigning pose matrix and child orientation
+            tmp_V = np.zeros((3,3))
+            tmp_V = Xparent[:,0]
+            tmp_V = Yparent[:,0]
+            tmp_V = Zparent[:,0]
+            
+            jointStruct[ankle_name]['parent_orientation'] = computeXYZAngleSeq(tmp_V)
+            
+        # Ankle child orientation
+        # ---------------------
+        # Z aligned like the cilinder of the talar throclear
+        # X like calcaneus, but perpendicular to Z
+        # Y from cross product
+        # ---------------------
+        if calcn_name in JCS:
+            CalcnDict = JCS[calcn_name]
+            
+            # take Z from ankle joint (axis of rotation)
+            Zchild = TalusDict[ankle_name]['V'][:,2]
+            # take X ant-post axis of the calcaneus
+            Xtemp = CalcnDict[mtp_name]['V'][:,0]
+            # make X and Z orthogonal
+            Xchild = preprocessing.normalize(Xtemp - Zchild*np.dot(Zchild, Xtemp), axis =0)
+            Ychild = preprocessing.normalize(np.cross(Zchild, Xtemp), axis =0)
+            # assigning pose matrix and child orientation
+            tmp_V = np.zeros((3,3))
+            tmp_V[:,0] = Xchild[:,0]
+            tmp_V[:,1] = Ychild[:,0]
+            tmp_V[:,2] = Zchild[:,0]
+            
+            jointStruct[ankle_name]['child_orientation'] = computeXYZAngleSeq(tmp_V)
+            
+    # Ankle child orientation
+    # ---------------------
+    # Z is the subtalar axis of rotation
+    # Y from centre of subtalar joint points to femur joint centre
+    # X from cross product
+    # ---------------------
+    if femur_name in JCS:
+        # needs to be initialized?
+        FemurDict = JCS[femur_name]
+        
+        # take Z from ankle joint (axis of rotation)
+        Zparent = TalusDict[subtalar_name]['V'][:,2]
+        # take Y pointing to the knee joint centre
+        Ytemp = (FemurDict[knee_name]['parent_location'] - TalusDict[subtalar_name]['parent_location'])
+        Ytemp /= np.linalg.norm(FemurDict[knee_name]['parent_location'] - TalusDict[ankle_name]['parent_location'], axis=0)
+        # make Y and Z orthogonal
+        Yparent = preprocessing.normalize(Ytemp - Zparent*np.dot(Zparent, Ytemp), axis =0)
+        Xparent = preprocessing.normalize(np.cross(Yparent, Zparent), axis =0)
+        # assigning pose matrix and child orientation
+        tmp_V = np.zeros((3,3))
+        tmp_V[:,0] = Xparent[:,0]
+        tmp_V[:,1] = Yparent[:,0]
+        tmp_V[:,2] = Zparent[:,0]
+        
+        jointStruct[subtalar_name]['parent_orientation'] = computeXYZAngleSeq(tmp_V)
+    
+    return jointStruct
+
+# -----------------------------------------------------------------------------
+def inferBodySideFromAnatomicStruct(anat_struct):
+    # -------------------------------------------------------------------------   
+    # Infer the body side that the user wants to process based on a structure 
+    # containing the anatomical objects (triangulations or joint definitions) 
+    # given as input. The implemented logic is trivial: the fields are checked 
+    # for standard names of bones and joints used in OpenSim models.
+    # 
+    # Inputs:
+    # anat_struct - a dictionary containing anatomical objects, e.g. a set of 
+    # bone triangulation or joint definitions.
+    # 
+    # Outputs:
+    # guessed_side - a body side label that can be used in all other STAPLE
+    # functions requiring such input.
+    # -------------------------------------------------------------------------
+    guessed_side = ''
+    
+    if isinstance(anat_struct, dict):
+        fields_side = list(anat_struct.keys())
+    else:
+        print('inferBodySideFromAnatomicStruct.py  Input must be dictionary.')
+        # logging.error('inferBodySideFromAnatomicStruct.py  Input must be dictionary.')
+        return 0 
+    
+    # check using the body names
+    body_set = ['femur', 'tibia', 'talus', 'calcn']
+    guess_side_b = [fs[-1] for b in body_set for fs in fields_side if b in fs]
+    
+    # check using the joint names
+    joint_set = ['hip', 'knee', 'ankle', 'subtalar']
+    guess_side_j = [fs[-1] for j in joint_set for fs in fields_side if j in fs]
+    
+    # composed list
+    combined_guessed = guess_side_b + guess_side_j
+    
+    if all(i == 'r' for i in combined_guessed):
+        guessed_side = 'r'
+    elif all(i == 'l' for i in combined_guessed):
+        guessed_side = 'l'
+    else:
+        print('guessBodySideFromAnatomicStruct.py Error: it was not possible to infer the body side. Please specify it manually in this occurrance.')
+        # logging.error('guessBodySideFromAnatomicStruct.py Error: it was not possible to infer the body side. Please specify it manually in this occurrance.')
+        
+    return guessed_side
+    
+        
+    
+    
+    
+    
+    
+    
+    
+    
 
 

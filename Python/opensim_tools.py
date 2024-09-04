@@ -550,10 +550,123 @@ def getJointParams3DoFKnee(joint_name, root_body = 'root_body'):
         
     return JointParamsStruct
 
+# -----------------------------------------------------------------------------
+def assembleJointStruct(jointStruct = {}):
+    # -------------------------------------------------------------------------
+    # Fill the MATLAB structure that will be used for creating the OpenSim 
+    # joints using the available information on the joint parameters. It makes 
+    # the simple assumption that when a parameter is missing 
+    # (child/parent_location/orientation), it is appropriate to copy the 
+    # information from the corresponding parent/child_location/orientation 
+    # parameter. This works when using geometries segmented from consistent 
+    # medical images and might not be appropriate for all intended uses of 
+    # STAPLE (although it is for most uses).
+    # 
+    # Inputs:
+    # jointStruct - Dictionary including the reference parameters
+    # that will be used to generate an OpenSim JointSet. It might be
+    # incomplete, with joints missing some of the required parameters.
+    # 
+    # Outputs:
+    # updJointStruct - updated jointStruct with the joints with fields 
+    # completed as discussed above.
+    # -------------------------------------------------------------------------
+    
+    updJointStruct = jointStruct.copy()
+    
+    fields_to_check = ['parent_location', 'parent_orientation', \
+                       'child_location',  'child_orientation']
+    
+    print('Finalizing joints:')
+    
+    for cur_joint_name in jointStruct:
+        
+        print(' *' + cur_joint_name)
+        complete_fields = [True if key in jointStruct[cur_joint_name] else False for key in fields_to_check]
+        
+        if all(complete_fields):
+            print('   - already complete.')
+            continue
+        
+        if np.sum(complete_fields[0::2]) == 0:
+            print('   - WARNING: ' + cur_joint_name + ' cannot be finalized: no joint locations available on neither bodies. Please read log and fix it.')
+            continue
+        
+        if np.sum(complete_fields[1::2]) == 0:
+            print('   - WARNING: Joint ' + cur_joint_name + ' cannot be finalized: no joint orientation available on neither bodies. Please read log and fix it.')
+            continue
+        
+        # if wither child or parent location/orientation is available, copy on 
+        # the missing field
+        for pos, key in enumerate(fields_to_check):
+            if complete_fields[pos] == False:
+                if key == 'parent_location':
+                    updJointStruct[cur_joint_name][key] = jointStruct[cur_joint_name]['child_location']
+                    print('   - parent_location missing: copied from "child_location".')
+                elif key == 'child_location':
+                    updJointStruct[cur_joint_name][key] = jointStruct[cur_joint_name]['parent_location']
+                    print('   - child_location missing: copied from "parent_location".')
+                elif key == 'parent_orientation':
+                    updJointStruct[cur_joint_name][key] = jointStruct[cur_joint_name]['child_orientation']
+                    print('   - parent_orientation missing: copied from "child_orientation".')
+                elif key == 'child_orientation':
+                    updJointStruct[cur_joint_name][key] = jointStruct[cur_joint_name]['parent_orientation']
+                    print('   - child_orientation missing: copied from "parent_orientation".')
+        
+    return updJointStruct
 
-
-
-
+# -----------------------------------------------------------------------------
+def verifyJointStructCompleteness(jointStruct = {}):
+    # -------------------------------------------------------------------------
+    # Check that the MATLAB structure that will be used for creating the 
+    # OpenSim joints includes all the required parameters, so that the joint 
+    # generation will not failed when the OpenSim API are called. This function
+    # should be called after the joint definitions have been applied, as a 
+    # "last check" before running the OpenSim API. 
+    # It checked that the following fields are defined:
+    # - child/parent_location/orientation
+    # - joint/parent/child_name
+    # - coordsNames/Types
+    # - rotationAxes
+    # 
+    # Inputs:
+    # jointStruct - Dictionary including the reference parameters
+    # that will be used to generate an OpenSim JointSet. It might be
+    # incomplete, with joints missing some of the required parameters.
+    # 
+    # Outputs:
+    # none
+    # -------------------------------------------------------------------------
+        
+    fields_to_check = ['jointName', 'parentName', 'parent_location',\
+                       'parent_orientation', 'childName', 'child_location',\
+                       'child_orientation', 'coordsNames', 'coordsTypes',\
+                       'rotationAxes']
+    
+    throw_error = False
+    
+    for cur_joint_name in jointStruct:
+        
+        defined_joint_params = [True if key in jointStruct[cur_joint_name] else False for key in fields_to_check]
+        # if error will be thrown (not all fields are present), printout 
+        # where the issue is
+        if all(defined_joint_params) != True:
+            
+            throw_error = True
+            print(cur_joint_name + ' definition incomplete. Missing fields:')
+            
+            for pos, key in enumerate(fields_to_check):
+                if defined_joint_params[pos] == False:
+                    print('   -> ' + key)
+    
+    # if flag is now positive, throw the error
+    if throw_error:
+        print('createOpenSimModelJoints.py Incomplete joint(s) definition(s): the joint(s) cannot be generated. See printout above.')
+        # loggin.error('createOpenSimModelJoints.py Incomplete joint(s) definition(s): the joint(s) cannot be generated. See printout above.')
+    else:
+        print('All joints are complete!')
+        
+    return 0
 
 
 

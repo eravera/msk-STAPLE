@@ -41,10 +41,11 @@ from GIBOC_core import plotDot, TriInertiaPpties, TriReduceMesh, TriFillPlanarHo
     TriChangeCS, plotTriangLight, plotBoneLandmarks, PlanPolygonCentroid3D, \
     getLargerPlanarSect
 
-from opensim_tools import computeXYZAngleSeq, getJointParams, getJointParams3DoFKnee
+from opensim_tools import computeXYZAngleSeq, getJointParams, getJointParams3DoFKnee, \
+    assembleJointStruct, verifyJointStructCompleteness
 
 from geometry import bodySide2Sign, landmarkBoneGeom, compileListOfJointsInJCSStruct, \
-    jointDefinitions_auto2020
+    jointDefinitions_auto2020, jointDefinitions_Modenese2018
 
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
@@ -725,16 +726,29 @@ print('Applying joint definitions: ' + joint_defs)
 
 if joint_defs == 'auto2020':
     jointStruct = jointDefinitions_auto2020(JCS, jointStruct)
-# elif joint_defs == 'Modenese2018':
-#     # joint definitions of Modenese et al.
-#     jointStruct = jointDefinitions_Modenese2018(JCS, jointStruct)
+elif joint_defs == 'Modenese2018':
+    # joint definitions of Modenese et al.
+    jointStruct = jointDefinitions_Modenese2018(JCS, jointStruct)
 else:
     print('createOpenSimModelJoints.py You need to define joint definitions')
     # loggin.error('createOpenSimModelJoints.py You need to define joint definitions')
 
+# completeJoints(jointStruct)
+jointStruct = assembleJointStruct(jointStruct)
 
+# check that all joints are completed
+verifyJointStructCompleteness(jointStruct)
 
+# after the verification joints can be added
+print('Adding joints to model:')
 
+for cur_joint_name in jointStruct:
+    # create the joint
+    # createCustomJointFromStruct(osimModel, jointStruct[cur_joint_name])
+    # display what has been created
+    print('   * ' + cur_joint_name)
+
+print('Done.')
 
 
 

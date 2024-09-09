@@ -29,47 +29,54 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
-from geometry import bodySide2Sign, \
-                      landmarkBoneGeom
+# from geometry import bodySide2Sign, \
+#                       landmarkBoneGeom
 
-from GIBOC_core import TriInertiaPpties, \
-                        TriMesh2DProperties, \
-                         TriChangeCS, \
-                          plotDot, \
-                           quickPlotRefSystem, \
-                            TriReduceMesh, \
-                             plotTriangLight, \
-                              plotBoneLandmarks, \
-                               cutLongBoneMesh, \
-                                TriFillPlanarHoles, \
-                                 computeTriCoeffMorpho, \
-                                  TriDilateMesh, \
-                                   TriUnite, \
-                                    sphere_fit, \
-                                     TriKeepLargestPatch, \
-                                      TriOpenMesh, \
-                                       TriPlanIntersect, \
-                                        TriSliceObjAlongAxis, \
-                                         fitCSA, \
-                                          LargestEdgeConvHull, \
-                                           PCRegionGrowing, \
-                                            lsplane, \
-                                             TriErodeMesh, \
-                                              TriCurvature, \
-                                               TriConnectedPatch, \
-                                                TriDifferenceMesh, \
-                                                 TriVertexNormal, \
-                                                  TriCloseMesh, \
-                                                   PtsOnCondylesFemur, \
-                                                    cylinderFitting, \
-                                                     plotCylinder, \
-                                                      PlanPolygonCentroid3D, \
-                                                       getLargerPlanarSect, \
-                                                        fit_ellipse
+# from GIBOC_core import TriInertiaPpties, \
+#                         TriMesh2DProperties, \
+#                          TriChangeCS, \
+#                           plotDot, \
+#                            quickPlotRefSystem, \
+#                             TriReduceMesh, \
+#                              plotTriangLight, \
+#                               plotBoneLandmarks, \
+#                                cutLongBoneMesh, \
+#                                 TriFillPlanarHoles, \
+#                                  computeTriCoeffMorpho, \
+#                                   TriDilateMesh, \
+#                                    TriUnite, \
+#                                     sphere_fit, \
+#                                      TriKeepLargestPatch, \
+#                                       TriOpenMesh, \
+#                                        TriPlanIntersect, \
+#                                         TriSliceObjAlongAxis, \
+#                                          fitCSA, \
+#                                           LargestEdgeConvHull, \
+#                                            PCRegionGrowing, \
+#                                             lsplane, \
+#                                              TriErodeMesh, \
+#                                               TriCurvature, \
+#                                                TriConnectedPatch, \
+#                                                 TriDifferenceMesh, \
+#                                                  TriVertexNormal, \
+#                                                   TriCloseMesh, \
+#                                                    PtsOnCondylesFemur, \
+#                                                     cylinderFitting, \
+#                                                      plotCylinder, \
+#                                                       PlanPolygonCentroid3D, \
+#                                                        getLargerPlanarSect, \
+#                                                         fit_ellipse
 
-from opensim_tools import computeXYZAngleSeq
+# from opensim_tools import computeXYZAngleSeq
 
-from Public_functions import freeBoundary
+# from Public_functions import freeBoundary
+
+from Public_functions import *
+from GIBOC_core import *
+# from algorithms import *
+from geometry import *
+# from anthropometry import *
+from opensim_tools import *
 
 #%% ---------------------------------------------------------------------------
 # PRIVATE

@@ -97,7 +97,7 @@ for curr_dataset in dataset_set:
     # create bone geometry folder for visualization
     geometry_folder_name = curr_model_name, '_Geometry'
     geometry_folder_path = os.path.join(output_models_folder, geometry_folder_name)
-    # writeModelGeometriesFolder(geom_set, geometry_folder_path, vis_geom_format);
+    # writeModelGeometriesFolder(geom_set, geometry_folder_path, vis_geom_format)
 
 
 

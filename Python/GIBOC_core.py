@@ -36,10 +36,16 @@ from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation as R
 from ellipse import LsqEllipse
 
-from Public_functions import freeBoundary, \
-                              PolyArea, \
-                               inpolygon
+# from Public_functions import freeBoundary, \
+#                               PolyArea, \
+#                                inpolygon
 
+from Public_functions import *
+# from GIBOC_core import *
+# from algorithms import *
+# from geometry import *
+# from anthropometry import *
+# from opensim_tools import *
 #%% ---------------------------------------------------------------------------
 # SUBFUNTIONS
 # -----------------------------------------------------------------------------

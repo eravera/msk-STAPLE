@@ -25,18 +25,24 @@ from sklearn import preprocessing
 import matplotlib.pyplot as plt
 
 
-from Public_functions import load_mesh
+# from Public_functions import load_mesh
 
-from GIBOC_core import TriChangeCS, \
-                        plotTriangLight, \
-                         quickPlotRefSystem
+# from GIBOC_core import TriChangeCS, \
+#                         plotTriangLight, \
+#                          quickPlotRefSystem
                         
 # from algorithms import STAPLE_pelvis, \
 #                         GIBOC_femur, \
 #                           Kai2014_tibia
 
-from opensim_tools import computeXYZAngleSeq
+# from opensim_tools import computeXYZAngleSeq
 
+from Public_functions import *
+from algorithms import *
+from GIBOC_core import *
+# from geometry import *
+# from anthropometry import *
+from opensim_tools import *
 # -----------------------------------------------------------------------------
 def inferBodySideFromAnatomicStruct(anat_struct):
     # -------------------------------------------------------------------------
@@ -124,7 +130,7 @@ def createTriGeomSet(aTriGeomList, geom_file_folder):
     for bone in aTriGeomList:
         
         curr_tri_geo_file = os.path.join(geom_file_folder, bone)
-        curr_tri_geo = load_mesh(curr_tri_geo_file)
+        curr_tri_geo = load_mesh(curr_tri_geo_file + '.stl')
         if not curr_tri_geo:
             # skip building the field if this was no gemoetry
             continue
@@ -805,7 +811,7 @@ def inferBodySideFromAnatomicStruct(anat_struct):
         fields_side = list(anat_struct.keys())
     else:
         print('inferBodySideFromAnatomicStruct.py  Input must be dictionary.')
-        # logging.error('inferBodySideFromAnatomicStruct.py  Input must be dictionary.')
+        logging.error('inferBodySideFromAnatomicStruct.py  Input must be dictionary.')
         return 0 
     
     # check using the body names
@@ -825,7 +831,7 @@ def inferBodySideFromAnatomicStruct(anat_struct):
         guessed_side = 'l'
     else:
         print('guessBodySideFromAnatomicStruct.py Error: it was not possible to infer the body side. Please specify it manually in this occurrance.')
-        # logging.error('guessBodySideFromAnatomicStruct.py Error: it was not possible to infer the body side. Please specify it manually in this occurrance.')
+        logging.error('guessBodySideFromAnatomicStruct.py Error: it was not possible to infer the body side. Please specify it manually in this occurrance.')
         
     return guessed_side
     

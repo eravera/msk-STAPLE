@@ -18,22 +18,14 @@ import scipy.io as sio
 import opensim
 import time
 
-# from geometry import inferBodySideFromAnatomicStruct, \
-#                         createTriGeomSet, \
-#                          processTriGeomBoneSet
 
-# from opensim_tools import writeModelGeometriesFolder, \
-#                            initializeOpenSimModel, \
-#                             addBodiesFromTriGeomBoneSet, \
-#                              createOpenSimModelJoints, \
-#                               assignMassPropsToSegments, \
-#                                addBoneLandmarksAsMarkers   
 from Public_functions import *
+from Private_STAPLEtools import *
 # from GIBOC_core import *
 # from algorithms import *
-from geometry import *
+# from geometry import *
 # from anthropometry import *
-from opensim_tools import *
+# from opensim_tools import *
 # -----------------------------------------------------------------------
 # This example demonstrates how to setup a simple STAPLE workflow to 
 # automatically create a model of the hip and the knee joints from the TLEM2 dataset 

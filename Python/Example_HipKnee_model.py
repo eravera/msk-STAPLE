@@ -130,11 +130,11 @@ for curr_dataset in dataset_set:
     osimModel.finalizeConnections()
     
     # print
-    osimModel.print(os.path.join(output_models_folder, output_model_file_name))
+    osimModel.printToXML(os.path.join(output_models_folder, output_model_file_name))
     
     # inform the user about time employed to create the model
     print('-------------------------')
-    print('Model generated in ' + str(np.roun(time.time() - tic,1)) + ' s')
+    print('Model generated in ' + str(np.round(time.time() - tic,1)) + ' s')
     print('Saved as ' + output_models_folder + '/' + output_model_file_name + '.')
     print('Model geometries saved in folder: ' + geometry_folder_path + '.')
     print('-------------------------')

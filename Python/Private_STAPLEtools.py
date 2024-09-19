@@ -1598,7 +1598,7 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     JCS['ground_pelvis'] = {}
     JCS['ground_pelvis']['V'] = BCS['V']
     JCS['ground_pelvis']['Origin'] = PelvisOr
-    JCS['ground_pelvis']['child_location'] = PelvisOr.T*dim_fact # [1x3] as in OpenSim
+    JCS['ground_pelvis']['child_location'] = PelvisOr*dim_fact#PelvisOr.T*dim_fact # [1x3] as in OpenSim
     JCS['ground_pelvis']['child_orientation'] = computeXYZAngleSeq(BCS['V']) # [1x3] as in OpenSim
     
     # define hip parent
@@ -2422,7 +2422,7 @@ def gait2392MassProps(segment_name = ''):
     
     MP = {}
     
-    if segment_name != 'pelvis' or segment_name != 'torso' or segment_name != 'full_body':
+    if segment_name != 'pelvis' and segment_name != 'torso' and segment_name != 'full_body':
         segment_name = segment_name[:-2]
         
     if segment_name == 'full_body':
@@ -2508,20 +2508,20 @@ def mapGait2392MassPropToModel(osimModel):
     # -------------------------------------------------------------------------
     
     # loop through the bodies of the model
-    N_bodies = osimModel.getBodySet.getSize()
+    N_bodies = osimModel.getBodySet().getSize()
     
     for n_b in range(N_bodies):
-        curr_body = osimModel.getBodySet.get(n_b)
+        curr_body = osimModel.getBodySet().get(n_b)
         curr_body_name = str(curr_body.getName())
         
         # retried mass properties of gait2392
         massProp = gait2392MassProps(curr_body_name)
         
         # retrieve segment to update
-        curr_body = osimModel.getBodySet.get(curr_body_name)
+        curr_body = osimModel.getBodySet().get(curr_body_name)
         
         # assign mass
-        curr_body.setMass(massProp.mass)
+        curr_body.setMass(massProp['mass'])
         
         # build a matrix of inertia with the gait2392 values
         xx = massProp['inertia_xx']
@@ -2559,13 +2559,13 @@ def scaleMassProps(osimModel, coeff):
     # -------------------------------------------------------------------------
     
     # get bodyset
-    subjspec_bodyset = osimModel.getBodySet
+    subjspec_bodyset = osimModel.getBodySet()
     for n_b in range(subjspec_bodyset.getSize()):
         
         curr_body = subjspec_bodyset.get(n_b)
         
         # updating the mass
-        curr_body.setMass(coeff*curr_body.getMass)
+        curr_body.setMass(coeff*curr_body.getMass())
         
         # updating the inertia matrix for the change in mass
         m = curr_body.get_inertia()
@@ -2644,7 +2644,8 @@ def assignMassPropsToSegments(osimModel, JCS = {}, subj_mass = 0, side_raw = '')
         thigh_L = np.linalg.norm(thigh_axis)
         thigh_COM = thigh_L*0.567 * (thigh_axis/thigh_L) + JCS[femur_name][knee_name]['Origin']
         # assign  thigh COM
-        osimModel.getBodySet().get(femur_name).setMassCenter(opensim.ArrayDouble.createVec3(thigh_COM/1000))
+        thigh_COM /= 1000
+        osimModel.getBodySet().get(femur_name).setMassCenter(opensim.ArrayDouble.createVec3(thigh_COM[0][0], thigh_COM[1][0], thigh_COM[2][0]))
         
         # shank
         if talus_name in JCS:
@@ -2653,7 +2654,8 @@ def assignMassPropsToSegments(osimModel, JCS = {}, subj_mass = 0, side_raw = '')
             shank_L = np.linalg.norm(shank_axis)
             shank_COM = shank_L*0.567 * (shank_axis/shank_L) + JCS[talus_name][ankle_name]['Origin']
             # assign  thigh COM
-            osimModel.getBodySet().get(tibia_name).setMassCenter(opensim.ArrayDouble.createVec3(shank_COM/1000))
+            shank_COM /= 1000 
+            osimModel.getBodySet().get(tibia_name).setMassCenter(opensim.ArrayDouble.createVec3(shank_COM[0][0], shank_COM[1][0], shank_COM[2][0]))
             
             # foot
             if calcn_name in JCS:
@@ -2662,7 +2664,8 @@ def assignMassPropsToSegments(osimModel, JCS = {}, subj_mass = 0, side_raw = '')
                 foot_L = np.linalg.norm(foot_axis)
                 calcn_COM = shank_L*0.5 * (foot_axis/foot_L) + JCS[calcn_name][toes_name]['Origin']
                 # assign  thigh COM
-                osimModel.getBodySet().get(calcn_name).setMassCenter(opensim.ArrayDouble.createVec3(calcn_COM/1000))
+                calcn_COM /= 1000
+                osimModel.getBodySet().get(calcn_name).setMassCenter(opensim.ArrayDouble.createVec3(calcn_COM[0][0], calcn_COM[1][0], calcn_COM[2][0]))
                 
     # -----------------------------------------------------------------------------
     # map gait2392 properties to the model segments as an initial value
@@ -2681,6 +2684,8 @@ def assignMassPropsToSegments(osimModel, JCS = {}, subj_mass = 0, side_raw = '')
     scaleMassProps(osimModel, coeff)
 
     print('Done.')
+    
+    return osimModel
 
 #%%
 # ##################################################
@@ -6385,9 +6390,9 @@ def createCustomJointFromStruct(model, jointStruct = {}):
     childName = jointStruct['childName']
     
     # transform offsets in Vec3
-    location_in_parent = opensim.ArrayDouble.createVec3(jointStruct['parent_location'][0][0], jointStruct['parent_location'][0][1], jointStruct['parent_location'][0][2])
+    location_in_parent = opensim.ArrayDouble.createVec3(jointStruct['parent_location'][0][0], jointStruct['parent_location'][1][0], jointStruct['parent_location'][2][0])
     orientation_in_parent = opensim.ArrayDouble.createVec3(jointStruct['parent_orientation'][0][0], jointStruct['parent_orientation'][0][1], jointStruct['parent_orientation'][0][2])
-    location_in_child = opensim.ArrayDouble.createVec3(jointStruct['child_location'][0][0], jointStruct['child_location'][0][1], jointStruct['child_location'][0][2])
+    location_in_child = opensim.ArrayDouble.createVec3(jointStruct['child_location'][0][0], jointStruct['child_location'][1][0], jointStruct['child_location'][2][0])
     orientation_in_child = opensim.ArrayDouble.createVec3(jointStruct['child_orientation'][0][0], jointStruct['child_orientation'][0][1], jointStruct['child_orientation'][0][2])
     
     # get the Physical Frames to connect with the CustomJoint
@@ -6413,16 +6418,16 @@ def createCustomJointFromStruct(model, jointStruct = {}):
     # add joint to model
     model.addJoint(myCustomJoint)
     
-    # update coordinates range of motion, if specified
-    if 'coordRanges' in jointStruct:
-        for n_coord in range(len(jointStruct['coordsNames'])):
-            curr_coord = myCustomJoint.get_coordinates(n_coord)
-            curr_ROM = jointStruct['coordsNames'][n_coord]
-            if jointStruct['coordsTypes'][n_coord] == 'rotational':
-                curr_ROM /= 180*np.pi
-            # set the range of motion for the coordinate
-            curr_coord.setRangeMin(curr_ROM[0])
-            curr_coord.setRangeMax(curr_ROM[1])
+    # # update coordinates range of motion, if specified
+    # if 'coordRanges' in jointStruct:
+    #     for n_coord in range(len(jointStruct['coordsNames'])):
+    #         curr_coord = myCustomJoint.get_coordinates(n_coord)
+    #         curr_ROM = jointStruct['coordsNames'][n_coord]
+    #         if jointStruct['coordsTypes'][n_coord] == 'rotational':
+    #             curr_ROM /= 180*np.pi
+    #         # set the range of motion for the coordinate
+    #         curr_coord.setRangeMin(curr_ROM[0])
+    #         curr_coord.setRangeMax(curr_ROM[1])
 
     return myCustomJoint
 
@@ -6478,7 +6483,7 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
     # if model is partial, it will be modified.
     JCS['ground'] = {}
     JCS['ground']['ground_pelvis'] = {'parentName': 'ground', \
-                                      'parent_location': np.zeros((1,3)), \
+                                      'parent_location': np.zeros((3,1)), \
                                       'parent_orientation': np.zeros((1,3))}
 
     # based on JCS make a list of bodies and joints
@@ -6651,13 +6656,13 @@ def addBoneLandmarksAsMarkers(osimModel, BLStruct, in_mm = 1):
             continue
         else:
             # the actual markers are fields of the cur_body_markers variable
-            for cur_marker_name in cur_body_markers:
+            for cur_marker_name in BLStruct[cur_body_name]:
                 # get body
-                cur_phys_frame = osimModel.getBodySet.get(cur_body_name)
-                Loc = cur_body_markers[cur_marker_name]*dim_fact
+                cur_phys_frame = osimModel.getBodySet().get(cur_body_name)
+                Loc = BLStruct[cur_body_name][cur_marker_name]*dim_fact
                 marker = opensim.Marker(cur_marker_name, \
                                         cur_phys_frame,\
-                                        opensim.Vec3(Loc[0], Loc[1], Loc[2]))
+                                        opensim.Vec3(Loc[0][0], Loc[1][0], Loc[2][0]))
                 
                 # add current marker to model
                 osimModel.addMarker(marker)

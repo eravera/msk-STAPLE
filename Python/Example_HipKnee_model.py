@@ -109,7 +109,7 @@ for curr_dataset in dataset_set:
     
     # initialize OpenSim model
     osimModel = initializeOpenSimModel(curr_model_name)
-    
+    # state = osimModel.initSystem()
     # create bodies
     osimModel = addBodiesFromTriGeomBoneSet(osimModel, triGeom_set, geometry_folder_name, vis_geom_format)
     
@@ -127,6 +127,7 @@ for curr_dataset in dataset_set:
     addBoneLandmarksAsMarkers(osimModel, BL)
     
     # finalize connections
+    state = osimModel.initSystem()
     osimModel.finalizeConnections()
     
     # print

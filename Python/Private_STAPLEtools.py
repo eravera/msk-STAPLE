@@ -1582,7 +1582,7 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     # check if bone landmarks are correctly identified or axes were incorrect
     if np.linalg.norm(RASIS-LASIS) < np.linalg.norm(RPSIS-LPSIS):
         # inform user
-        print('GIBOK_pelvis.')
+        print('GIBOC_pelvis.')
         print('Inter-ASIS distance is shorter than inter-PSIS distance. Better check manually.')
         
     # ISB reference system
@@ -6327,28 +6327,79 @@ def createSpatialTransformFromStruct(jointStruct = {}):
     
     # looping through axes (3 rotations, 3 translations)
     for n, name in enumerate(coords_names):
-        # get modifiable transform axis (upd..)
-        TransAxis = jointSpatialTransf.updTransformAxis(n)
+        if 'tilt' in name or 'flexion' in name:
+            rot1 = jointSpatialTransf.get_rotation1()
+            rot1.append_coordinates(name)
+            rot1.set_axis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+            rot1.set_function(lin_fun)
+        if 'list' in name or 'adduction' in name:
+            rot2 = jointSpatialTransf.get_rotation2()
+            rot2.append_coordinates(name)
+            rot2.set_axis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+            rot2.set_function(lin_fun)
+        if 'rotation' in name:
+            rot3 = jointSpatialTransf.get_rotation3()
+            rot3.append_coordinates(name)
+            rot3.set_axis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+            rot3.set_function(lin_fun)
+        if 'tx' in name:
+            trans1 = jointSpatialTransf.get_translation1()
+            trans1.append_coordinates(name)
+            trans1.set_axis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+            trans1.set_function(lin_fun)
+        if 'ty' in name:
+            trans2 = jointSpatialTransf.get_translation2()
+            trans2.append_coordinates(name)
+            trans2.set_axis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+            trans2.set_function(lin_fun)
+        if 'tz' in name:
+            trans3 = jointSpatialTransf.get_translation3()
+            trans3.append_coordinates(name)
+            trans3.set_axis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+            trans3.set_function(lin_fun)
+        if 'angle' in name:
+            rot1 = jointSpatialTransf.get_rotation1()
+            rot1.append_coordinates(name)
+            rot1.set_axis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+            rot1.set_function(lin_fun)
+            rot2 = jointSpatialTransf.get_rotation2()
+            rot2.append_coordinates('')
+            rot2.set_axis(opensim.ArrayDouble.createVec3(0, 1, 0))
+            rot2.set_function(const_fun)
+            rot3 = jointSpatialTransf.get_rotation3()
+            rot3.append_coordinates('')
+            rot3.set_axis(opensim.ArrayDouble.createVec3(1, 0, 0))
+            rot3.set_function(const_fun)
+            
+    # for n, name in enumerate(coords_names):
+    #     # get modifiable transform axis (upd..)
+    #     TransAxis = jointSpatialTransf.updTransformAxis(n)
         
-        # applying specified rotation order
-        # TransAxis = jointSpatialTransf.updTransformAxis(TransAxis, v[n,:])
-        TransAxis.setAxis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+    #     # applying specified rotation order
+    #     # TransAxis = jointSpatialTransf.updTransformAxis(TransAxis, v[n,:])
+    #     TransAxis.setAxis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
+    #     # jointSpatialTransf.updTransformAxis(n).setAxis(opensim.ArrayDouble.createVec3(v[n,0], v[n,1], v[n,2]))
         
-        # this will update the coordinate names and assign a linear
-        # function to those axes with a coordinate associated with.
-        # the axis without a coordinate associated will be assigned a constant
-        # zero function (they will not move).
-        # TransAxis = jointSpatialTransf.updTransformAxisCoordName(TransAxis, name)
-        TransAxis.setName(name)
+    #     # this will update the coordinate names and assign a linear
+    #     # function to those axes with a coordinate associated with.
+    #     # the axis without a coordinate associated will be assigned a constant
+    #     # zero function (they will not move).
+    #     # TransAxis = jointSpatialTransf.updTransformAxisCoordName(TransAxis, name)
+    #     TransAxis.setName(name)
+    #     # jointSpatialTransf.updTransformAxis(n).setName(name)
         
-        # assign appropriate function
-        if name != '':
-            TransAxis.set_function(lin_fun)
-        else:
-            TransAxis.set_function(const_fun)
+    #     # assign appropriate function
+    #     if name != '':
+    #         # TransAxis.set_function(lin_fun)
+    #         jointSpatialTransf.updTransformAxis(n).set_function(lin_fun)
+    #     else:
+    #         # TransAxis.set_function(const_fun)
+    #         jointSpatialTransf.updTransformAxis(n).set_function(const_fun)
+            
+    #     # jointSpatialTransf.updTransformAxis(n)
     
-    # this will take care of having 3 independent axis
-    jointSpatialTransf.constructIndependentAxes(len(rot_coords_names), 0)
+    # # this will take care of having 3 independent axis
+    # jointSpatialTransf.constructIndependentAxes(len(rot_coords_names), 0)
     
     return jointSpatialTransf
     
@@ -6418,17 +6469,21 @@ def createCustomJointFromStruct(model, jointStruct = {}):
     # add joint to model
     model.addJoint(myCustomJoint)
     
-    # # update coordinates range of motion, if specified
-    # if 'coordRanges' in jointStruct:
-    #     for n_coord in range(len(jointStruct['coordsNames'])):
-    #         curr_coord = myCustomJoint.get_coordinates(n_coord)
-    #         curr_ROM = jointStruct['coordsNames'][n_coord]
-    #         if jointStruct['coordsTypes'][n_coord] == 'rotational':
-    #             curr_ROM /= 180*np.pi
-    #         # set the range of motion for the coordinate
-    #         curr_coord.setRangeMin(curr_ROM[0])
-    #         curr_coord.setRangeMax(curr_ROM[1])
-
+    # update coordinates range of motion, if specified
+    if 'coordRanges' in jointStruct:
+        for n_coord in range(len(jointStruct['coordsNames'])):
+            curr_coord = myCustomJoint.get_coordinates(int(n_coord))
+            curr_ROM = jointStruct['coordRanges'][n_coord]
+            if jointStruct['coordsTypes'][n_coord] == 'rotational':
+                # curr_ROM /= 180*np.pi
+                curr_ROM[0] /= 180*np.pi
+                curr_ROM[1] /= 180*np.pi
+            # set the range of motion for the coordinate
+            curr_coord.setRangeMin(curr_ROM[0])
+            curr_coord.setRangeMax(curr_ROM[1])
+            
+    # state = model.initSystem()
+    
     return myCustomJoint
 
 # -----------------------------------------------------------------------------
@@ -6599,7 +6654,7 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
         print('   * ' + cur_joint_name)
 
     print('Done.')
-    
+    # state = osimModel.initSystem()
     return 0
 
 # -----------------------------------------------------------------------------
@@ -6662,7 +6717,7 @@ def addBoneLandmarksAsMarkers(osimModel, BLStruct, in_mm = 1):
                 Loc = BLStruct[cur_body_name][cur_marker_name]*dim_fact
                 marker = opensim.Marker(cur_marker_name, \
                                         cur_phys_frame,\
-                                        opensim.Vec3(Loc[0][0], Loc[1][0], Loc[2][0]))
+                                        opensim.Vec3(float(Loc[0][0]), float(Loc[1][0]), float(Loc[2][0])))
                 
                 # add current marker to model
                 osimModel.addMarker(marker)

@@ -107,28 +107,28 @@ for curr_dataset in dataset_set:
     geometry_folder_path = os.path.join(output_models_folder, geometry_folder_name)
     writeModelGeometriesFolder(triGeom_set, geometry_folder_path, vis_geom_format)
     
-    # initialize OpenSim model
-    osimModel = initializeOpenSimModel(curr_model_name)
-    # state = osimModel.initSystem()
-    # create bodies
-    osimModel = addBodiesFromTriGeomBoneSet(osimModel, triGeom_set, geometry_folder_name, vis_geom_format)
-    
     # process bone geometries (compute joint parameters and identify markers)
     [JCS, BL, CS] = processTriGeomBoneSet(triGeom_set, side)
     
-    # create joints
-    createOpenSimModelJoints(osimModel, JCS, workflow)
-
+    
+    # initialize OpenSim model
+    osimModel = initializeOpenSimModel(curr_model_name)
+    
+    # create bodies
+    osimModel = addBodiesFromTriGeomBoneSet(osimModel, triGeom_set, geometry_folder_name, vis_geom_format)
+        
     # update mass properties to those estimated using a scale version of
     # gait2392 with COM based on Winters's book.
     osimModel = assignMassPropsToSegments(osimModel, JCS, mass)
+    
+    # create joints
+    osimModel = createOpenSimModelJoints(osimModel, JCS, workflow)
     
     # add markers to the bones
     addBoneLandmarksAsMarkers(osimModel, BL)
     
     # finalize connections
-    state = osimModel.initSystem()
-    osimModel.finalizeConnections()
+    osimModel.finalizeConnections
     
     # print
     osimModel.printToXML(os.path.join(output_models_folder, output_model_file_name))

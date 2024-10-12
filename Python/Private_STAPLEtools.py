@@ -5855,11 +5855,16 @@ def addBodyFromTriGeomObj(osimModel = '', triGeom = {}, body_name = '', vis_mesh
     # add body to model
     osimModel.addBody(osim_body)
     
-    # # add visualization mesh
-    # if vis_mesh_file != '':
-    #     vis_geom = opensim.Mesh(vis_mesh_file)
-    #     vis_geom.set_scale_factors(opensim.Vec3(dim_fact))
-    #     osimModel.attachGeometry(vis_geom)
+    # add visualization mesh
+    if vis_mesh_file != '':
+        # vis_geom = opensim.Mesh(vis_mesh_file)
+        vis_geom = opensim.Mesh(body_name + '_geom')
+        vis_geom.set_scale_factors(opensim.Vec3(dim_fact))
+        vis_geom.set_mesh_file(vis_mesh_file)
+        vis_geom.setOpacity(1)
+        vis_geom.setColor(opensim.Vec3(1, 1, 1))
+        osimModel.getBodySet().get(body_name).attachGeometry(vis_geom)
+        # osimModel.attachGeometry(vis_geom)
        
     return osimModel
 
@@ -6370,7 +6375,8 @@ def createSpatialTransformFromStruct(jointStruct = {}):
             rot3.append_coordinates('')
             rot3.set_axis(opensim.ArrayDouble.createVec3(1, 0, 0))
             rot3.set_function(const_fun)
-            
+        
+        jointSpatialTransf.updTransformAxis(n)
     # for n, name in enumerate(coords_names):
     #     # get modifiable transform axis (upd..)
     #     TransAxis = jointSpatialTransf.updTransformAxis(n)
@@ -6398,13 +6404,13 @@ def createSpatialTransformFromStruct(jointStruct = {}):
             
     #     # jointSpatialTransf.updTransformAxis(n)
     
-    # # this will take care of having 3 independent axis
-    # jointSpatialTransf.constructIndependentAxes(len(rot_coords_names), 0)
+    # this will take care of having 3 independent axis
+    jointSpatialTransf.constructIndependentAxes(len(rot_coords_names), 0)
     
     return jointSpatialTransf
     
 # -----------------------------------------------------------------------------
-def createCustomJointFromStruct(model, jointStruct = {}):
+def createCustomJointFromStruct(osimModel, jointStruct = {}):
     # -------------------------------------------------------------------------
     # Create and add to model a CustomJoint using the parameters defined in the
     # dictionary given as input.
@@ -6448,11 +6454,11 @@ def createCustomJointFromStruct(model, jointStruct = {}):
     
     # get the Physical Frames to connect with the CustomJoint
     if parentName == 'ground':
-        parent_frame = model.getGround()
+        parent_frame = osimModel.getGround()
     else:
-        parent_frame = model.getBodySet().get(parentName)
+        parent_frame = osimModel.getBodySet().get(parentName)
         
-    child_frame = model.getBodySet().get(childName)
+    child_frame = osimModel.getBodySet().get(childName)
     
     # create the spatialTransform from the assigned structure
     # openSim 3.3
@@ -6467,7 +6473,7 @@ def createCustomJointFromStruct(model, jointStruct = {}):
                                         jointSpatialTransf)
     
     # add joint to model
-    model.addJoint(myCustomJoint)
+    osimModel.addJoint(myCustomJoint)
     
     # update coordinates range of motion, if specified
     if 'coordRanges' in jointStruct:
@@ -6482,7 +6488,7 @@ def createCustomJointFromStruct(model, jointStruct = {}):
             curr_coord.setRangeMin(curr_ROM[0])
             curr_coord.setRangeMax(curr_ROM[1])
             
-    # state = model.initSystem()
+    # state = osimModel.initSystem
     
     return myCustomJoint
 
@@ -6647,15 +6653,73 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
     # after the verification joints can be added
     print('Adding joints to model:')
 
+    # for cur_joint_name in jointStruct:
+    #     # create the joint
+        # _ = createCustomJointFromStruct(osimModel, jointStruct[cur_joint_name])
+    #     # display what has been created
+    #     print('   * ' + cur_joint_name)
+    #     # state = osimModel.initSystem
+    
+    # ----------------------------------------------
     for cur_joint_name in jointStruct:
         # create the joint
-        _ = createCustomJointFromStruct(osimModel, jointStruct[cur_joint_name])
-        # display what has been created
-        print('   * ' + cur_joint_name)
+        
+        # ------------------------------------------
+        # extract names
+        jointName = jointStruct[cur_joint_name]['jointName']
+        parentName = jointStruct[cur_joint_name]['parentName']
+        childName = jointStruct[cur_joint_name]['childName']
+        
+        # transform offsets in Vec3
+        location_in_parent = opensim.ArrayDouble.createVec3(jointStruct[cur_joint_name]['parent_location'][0][0], jointStruct[cur_joint_name]['parent_location'][1][0], jointStruct[cur_joint_name]['parent_location'][2][0])
+        orientation_in_parent = opensim.ArrayDouble.createVec3(jointStruct[cur_joint_name]['parent_orientation'][0][0], jointStruct[cur_joint_name]['parent_orientation'][0][1], jointStruct[cur_joint_name]['parent_orientation'][0][2])
+        location_in_child = opensim.ArrayDouble.createVec3(jointStruct[cur_joint_name]['child_location'][0][0], jointStruct[cur_joint_name]['child_location'][1][0], jointStruct[cur_joint_name]['child_location'][2][0])
+        orientation_in_child = opensim.ArrayDouble.createVec3(jointStruct[cur_joint_name]['child_orientation'][0][0], jointStruct[cur_joint_name]['child_orientation'][0][1], jointStruct[cur_joint_name]['child_orientation'][0][2])
+        
+        # get the Physical Frames to connect with the CustomJoint
+        if parentName == 'ground':
+            parent_frame = osimModel.getGround()
+        else:
+            parent_frame = osimModel.getBodySet().get(parentName)
+            
+        child_frame = osimModel.getBodySet().get(childName)
+        
+        # create the spatialTransform from the assigned structure
+        # openSim 3.3
+        # OSJoint = setCustomJointSpatialTransform(OSJoint, jointStruct);
+        # OpenSim 4.1
+        jointSpatialTransf = createSpatialTransformFromStruct(jointStruct[cur_joint_name])
+        
+        # create the CustomJoint
+        myCustomJoint = opensim.CustomJoint(jointName,\
+                                            parent_frame, location_in_parent, orientation_in_parent,\
+                                            child_frame, location_in_child, orientation_in_child,\
+                                            jointSpatialTransf)
+        
+        # add joint to model
+        osimModel.addJoint(myCustomJoint)
+        
+        # update coordinates range of motion, if specified
+        if 'coordRanges' in jointStruct:
+            for n_coord in range(len(jointStruct['coordsNames'])):
+                curr_coord = myCustomJoint.get_coordinates(int(n_coord))
+                curr_ROM = jointStruct['coordRanges'][n_coord]
+                if jointStruct['coordsTypes'][n_coord] == 'rotational':
+                    # curr_ROM /= 180*np.pi
+                    curr_ROM[0] /= 180*np.pi
+                    curr_ROM[1] /= 180*np.pi
+                # set the range of motion for the coordinate
+                curr_coord.setRangeMin(curr_ROM[0])
+                curr_coord.setRangeMax(curr_ROM[1])
+                # osimModel.getJointSet().get(curr_coord).setRangeMin(curr_ROM[0])
+                # osimModel.getJointSet().get(curr_coord).setRangeMax(curr_ROM[1])
+                
+        # state = osimModel.initSystem
+    
 
     print('Done.')
-    # state = osimModel.initSystem()
-    return 0
+    
+    return osimModel
 
 # -----------------------------------------------------------------------------
 def addBoneLandmarksAsMarkers(osimModel, BLStruct, in_mm = 1):
@@ -6693,6 +6757,10 @@ def addBoneLandmarksAsMarkers(osimModel, BLStruct, in_mm = 1):
     print('Attaching bony landmarks to model bodies:')
 
     # loop through the bodies specified in BLStruct
+    # myState = osimModel.initSystem
+    # newMarkerSet = osimModel.getMarkerSet()
+    newMarkerSet = opensim.MarkerSet()
+    
     for cur_body_name in BLStruct:
         # body name
         print('  ' + cur_body_name + ':')
@@ -6713,19 +6781,32 @@ def addBoneLandmarksAsMarkers(osimModel, BLStruct, in_mm = 1):
             # the actual markers are fields of the cur_body_markers variable
             for cur_marker_name in BLStruct[cur_body_name]:
                 # get body
-                cur_phys_frame = osimModel.getBodySet().get(cur_body_name)
+                # cur_phys_frame = osimModel.getBodySet().get(cur_body_name)
                 Loc = BLStruct[cur_body_name][cur_marker_name]*dim_fact
-                marker = opensim.Marker(cur_marker_name, \
-                                        cur_phys_frame,\
-                                        opensim.Vec3(float(Loc[0][0]), float(Loc[1][0]), float(Loc[2][0])))
-                
+                # marker = opensim.Marker(cur_marker_name, \
+                #                         cur_phys_frame,\
+                #                         opensim.Vec3(float(Loc[0][0]), float(Loc[1][0]), float(Loc[2][0])))
+                marker = opensim.Marker()
+                marker.setName(cur_marker_name)
+                marker.setParentFrameName('/bodyset/' + cur_body_name)
+                marker.set_location(opensim.Vec3(float(Loc[0][0]), float(Loc[1][0]), float(Loc[2][0])))
                 # add current marker to model
-                osimModel.addMarker(marker)
+                newMarkerSet.addComponent(marker)
+                # newMarkerSet.addMarker(marker)
+                # osimModel.addMarker(marker)
+                
                 
                 # clear coordinates as precaution
                 del Loc
                 print('    * ' + cur_marker_name)
-                
+    
+    # myState = osimModel.initSystem
+    osimModel.set_MarkerSet(newMarkerSet)
+    # myState = osimModel.initSystem
+    # osimModel.updMarkerSet()
+    # myState = osimModel.initSystem
+    # osimModel.addComponent(newMarkerSet)
+
     print('Done.')
 
     return 0

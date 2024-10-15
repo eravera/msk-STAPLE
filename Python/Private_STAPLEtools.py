@@ -6471,7 +6471,7 @@ def createCustomJointFromStruct(osimModel, jointStruct = {}):
                                         parent_frame, location_in_parent, orientation_in_parent,\
                                         child_frame, location_in_child, orientation_in_child,\
                                         jointSpatialTransf)
-    
+
     # add joint to model
     osimModel.addJoint(myCustomJoint)
     
@@ -6487,6 +6487,7 @@ def createCustomJointFromStruct(osimModel, jointStruct = {}):
             # set the range of motion for the coordinate
             curr_coord.setRangeMin(curr_ROM[0])
             curr_coord.setRangeMax(curr_ROM[1])
+    
             
     # state = osimModel.initSystem
     
@@ -6560,7 +6561,7 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
     if jointParamFile != 'getJointParams':
         jointParamFuncName = jointParamFile
     else:
-        print('WARNING: Specified function ' + jointParamFile + 'for joint parameters was not found. Using default "getJointParams.py"')
+        print('WARNING: Specified function ' + jointParamFile + ' for joint parameters was not found. Using default "getJointParams.py"')
         jointParamFuncName = 'getJointParams'
 
     jointStruct = {}
@@ -6709,10 +6710,28 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
                     curr_ROM[0] /= 180*np.pi
                     curr_ROM[1] /= 180*np.pi
                 # set the range of motion for the coordinate
-                curr_coord.setRangeMin(curr_ROM[0])
-                curr_coord.setRangeMax(curr_ROM[1])
-                # osimModel.getJointSet().get(curr_coord).setRangeMin(curr_ROM[0])
-                # osimModel.getJointSet().get(curr_coord).setRangeMax(curr_ROM[1])
+                # curr_coord.setRangeMin(curr_ROM[0])
+                # curr_coord.setRangeMax(curr_ROM[1])
+                osimModel.getJointSet().get(curr_coord).setRangeMin(curr_ROM[0])
+                osimModel.getJointSet().get(curr_coord).setRangeMax(curr_ROM[1])
+        # # NEW
+        # # update coordinates range of motion, if specified
+        # if 'coordRanges' in jointStruct[cur_joint_name]:
+        #     for n_coord in range(len(jointStruct[cur_joint_name]['coordsNames'])):
+        #         # curr_coord = myCustomJoint.get_coordinates(int(n_coord))
+        #         curr_ROM = jointStruct[cur_joint_name]['coordRanges'][n_coord]
+        #         if jointStruct[cur_joint_name]['coordsTypes'][n_coord] == 'rotational':
+        #             # curr_ROM /= 180*np.pi
+        #             curr_ROM[0] /= 180*np.pi
+        #             curr_ROM[1] /= 180*np.pi
+        #         # set the range of motion for the coordinate
+        #         myCustomJoint.get_coordinates(int(n_coord)).setRangeMin(curr_ROM[0])
+        #         myCustomJoint.get_coordinates(int(n_coord)).setRangeMax(curr_ROM[1])
+        #         # curr_coord.setRangeMin(curr_ROM[0])
+        #         # curr_coord.setRangeMax(curr_ROM[1])
+            
+        # # add joint to model
+        # osimModel.addJoint(myCustomJoint)
                 
         # state = osimModel.initSystem
     

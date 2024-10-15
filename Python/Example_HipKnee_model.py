@@ -116,13 +116,13 @@ for curr_dataset in dataset_set:
     
     # create bodies
     osimModel = addBodiesFromTriGeomBoneSet(osimModel, triGeom_set, geometry_folder_name, vis_geom_format)
-        
-    # update mass properties to those estimated using a scale version of
-    # gait2392 with COM based on Winters's book.
-    osimModel = assignMassPropsToSegments(osimModel, JCS, mass)
     
     # create joints
     osimModel = createOpenSimModelJoints(osimModel, JCS, workflow)
+    
+    # update mass properties to those estimated using a scale version of
+    # gait2392 with COM based on Winters's book.
+    osimModel = assignMassPropsToSegments(osimModel, JCS, mass)
     
     # add markers to the bones
     addBoneLandmarksAsMarkers(osimModel, BL)

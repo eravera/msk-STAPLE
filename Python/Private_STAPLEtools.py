@@ -5719,6 +5719,12 @@ def initializeOpenSimModel(aModelNameString):
     # set credits
     osimModel.set_credits('Luca Modenese, Jean-Baptiste Renault 2020. Model created using the STAPLE (Shared Tools for Automatic Personalised Lower Extremity) modelling toolbox. GitHub page: https://github.com/modenaxe/msk-STAPLE.')
     
+    # ground = opensim.Ground()
+    # ground.upd_frame_geometry()
+    
+    osimModel.upd_ground()
+    osimModel.getGround().upd_frame_geometry()
+    
     return osimModel
 
 # -----------------------------------------------------------------------------
@@ -5854,18 +5860,19 @@ def addBodyFromTriGeomObj(osimModel = '', triGeom = {}, body_name = '', vis_mesh
                                              bone_inertia[3], bone_inertia[4], bone_inertia[5]))
     # add body to model
     osimModel.addBody(osim_body)
-    
+        
     # add visualization mesh
     if vis_mesh_file != '':
-        # vis_geom = opensim.Mesh(vis_mesh_file)
         vis_geom = opensim.Mesh(body_name + '_geom')
         vis_geom.set_scale_factors(opensim.Vec3(dim_fact))
         vis_geom.set_mesh_file(vis_mesh_file)
         vis_geom.setOpacity(1)
         vis_geom.setColor(opensim.Vec3(1, 1, 1))
         osimModel.getBodySet().get(body_name).attachGeometry(vis_geom)
-        # osimModel.attachGeometry(vis_geom)
-       
+    
+    # update body frame geometry
+    osimModel.getBodySet().get(body_name).upd_frame_geometry()
+    
     return osimModel
 
 # -----------------------------------------------------------------------------
@@ -6697,44 +6704,26 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
                                             child_frame, location_in_child, orientation_in_child,\
                                             jointSpatialTransf)
         
+        myCustomJoint.getSocket('parent_frame').setConnecteePath(parentName + '_offset')
+        myCustomJoint.getSocket('child_frame').setConnecteePath(childName + '_offset')
+        # myCustomJoint.connectSocket_parent_frame(parent_frame)
+        # myCustomJoint.connectSocket_child_frame(child_frame)
+        myCustomJoint.get_frames(0).connectSocket_parent(parent_frame)
+        myCustomJoint.get_frames(1).connectSocket_parent(child_frame)
         # add joint to model
         osimModel.addJoint(myCustomJoint)
         
+        
         # update coordinates range of motion, if specified
-        if 'coordRanges' in jointStruct:
-            for n_coord in range(len(jointStruct['coordsNames'])):
-                curr_coord = myCustomJoint.get_coordinates(int(n_coord))
-                curr_ROM = jointStruct['coordRanges'][n_coord]
-                if jointStruct['coordsTypes'][n_coord] == 'rotational':
-                    # curr_ROM /= 180*np.pi
+        if 'coordRanges' in jointStruct[cur_joint_name]:
+            for n_coord, coord in enumerate(jointStruct[cur_joint_name]['coordsNames']):
+                curr_ROM = jointStruct[cur_joint_name]['coordRanges'][n_coord]
+                if jointStruct[cur_joint_name]['coordsTypes'][n_coord] == 'rotational':
                     curr_ROM[0] /= 180*np.pi
                     curr_ROM[1] /= 180*np.pi
                 # set the range of motion for the coordinate
-                # curr_coord.setRangeMin(curr_ROM[0])
-                # curr_coord.setRangeMax(curr_ROM[1])
-                osimModel.getJointSet().get(curr_coord).setRangeMin(curr_ROM[0])
-                osimModel.getJointSet().get(curr_coord).setRangeMax(curr_ROM[1])
-        # # NEW
-        # # update coordinates range of motion, if specified
-        # if 'coordRanges' in jointStruct[cur_joint_name]:
-        #     for n_coord in range(len(jointStruct[cur_joint_name]['coordsNames'])):
-        #         # curr_coord = myCustomJoint.get_coordinates(int(n_coord))
-        #         curr_ROM = jointStruct[cur_joint_name]['coordRanges'][n_coord]
-        #         if jointStruct[cur_joint_name]['coordsTypes'][n_coord] == 'rotational':
-        #             # curr_ROM /= 180*np.pi
-        #             curr_ROM[0] /= 180*np.pi
-        #             curr_ROM[1] /= 180*np.pi
-        #         # set the range of motion for the coordinate
-        #         myCustomJoint.get_coordinates(int(n_coord)).setRangeMin(curr_ROM[0])
-        #         myCustomJoint.get_coordinates(int(n_coord)).setRangeMax(curr_ROM[1])
-        #         # curr_coord.setRangeMin(curr_ROM[0])
-        #         # curr_coord.setRangeMax(curr_ROM[1])
-            
-        # # add joint to model
-        # osimModel.addJoint(myCustomJoint)
-                
-        # state = osimModel.initSystem
-    
+                osimModel.getCoordinateSet().get(coord).setRangeMin(curr_ROM[0])
+                osimModel.getCoordinateSet().get(coord).setRangeMax(curr_ROM[1])
 
     print('Done.')
     
@@ -6811,20 +6800,12 @@ def addBoneLandmarksAsMarkers(osimModel, BLStruct, in_mm = 1):
                 marker.set_location(opensim.Vec3(float(Loc[0][0]), float(Loc[1][0]), float(Loc[2][0])))
                 # add current marker to model
                 newMarkerSet.addComponent(marker)
-                # newMarkerSet.addMarker(marker)
-                # osimModel.addMarker(marker)
-                
-                
+                                
                 # clear coordinates as precaution
                 del Loc
                 print('    * ' + cur_marker_name)
     
-    # myState = osimModel.initSystem
     osimModel.set_MarkerSet(newMarkerSet)
-    # myState = osimModel.initSystem
-    # osimModel.updMarkerSet()
-    # myState = osimModel.initSystem
-    # osimModel.addComponent(newMarkerSet)
 
     print('Done.')
 

@@ -6496,7 +6496,7 @@ def createCustomJointFromStruct(osimModel, jointStruct = {}):
             curr_coord.setRangeMax(curr_ROM[1])
     
             
-    # state = osimModel.initSystem
+    state = osimModel.initSystem
     
     return myCustomJoint
 
@@ -6706,10 +6706,10 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
         
         myCustomJoint.getSocket('parent_frame').setConnecteePath(parentName + '_offset')
         myCustomJoint.getSocket('child_frame').setConnecteePath(childName + '_offset')
-        # myCustomJoint.connectSocket_parent_frame(parent_frame)
-        # myCustomJoint.connectSocket_child_frame(child_frame)
-        myCustomJoint.get_frames(0).connectSocket_parent(parent_frame)
-        myCustomJoint.get_frames(1).connectSocket_parent(child_frame)
+        # # myCustomJoint.connectSocket_parent_frame(parent_frame)
+        # # myCustomJoint.connectSocket_child_frame(child_frame)
+        # myCustomJoint.get_frames(0).connectSocket_parent(parent_frame)
+        # myCustomJoint.get_frames(1).connectSocket_parent(child_frame)
         # add joint to model
         osimModel.addJoint(myCustomJoint)
         
@@ -6724,7 +6724,11 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
                 # set the range of motion for the coordinate
                 osimModel.getCoordinateSet().get(coord).setRangeMin(curr_ROM[0])
                 osimModel.getCoordinateSet().get(coord).setRangeMax(curr_ROM[1])
-
+        
+        # update PhysicalOffsetFrame socket_frame
+        osimModel.getJointSet().get(cur_joint_name).getParentFrame().getSocket('parent').setConnecteePath(parent_frame.getAbsolutePathString())
+        osimModel.getJointSet().get(cur_joint_name).getChildFrame().getSocket('parent').setConnecteePath(child_frame.getAbsolutePathString())
+        
     print('Done.')
     
     return osimModel

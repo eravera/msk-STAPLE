@@ -52,14 +52,17 @@ datasets_folder = path_file + '/bone_datasets/'
 # dataset(s) that you would like to process specified as list. 
 # If you add multiple datasets they will be batched processed but you will
 # have to adapt the folder and file namings below.
-dataset_set = ['TLEM2_simplify']
-mass = 45 # kg
+# dataset_set = ['TLEM2_simplify']
+dataset_set = ['meshes']
+# mass = 45 # kg
+mass = 44.4 # kg
 
 # body sides
 curr_side = 'r'
 
 # list with the name of the bone geometries to process.
 bones_list = ['pelvis', 'femur_' + curr_side, 'tibia_' + curr_side]
+# bones_list = ['pelvis', 'femur_' + curr_side]
 
 # format of visualization geometry (obj preferred - smaller files)
 vis_geom_format = 'stl' # options: 'stl'/'obj'
@@ -84,7 +87,10 @@ for curr_dataset in dataset_set:
     # curr_side = inferBodySideFromAnatomicStruct(bones_list)
         
     # model name
-    curr_model_name = 'example_' + workflow + '_HipKnee_' + curr_side.upper()
+    # curr_model_name = 'example_' + workflow + '_Hip_' + curr_side.upper()
+    # curr_model_name = 'example_' + workflow + '_HipKnee_' + curr_side.upper()
+    curr_model_name = 'Carman_' + workflow + '_HipKnee_' + curr_side.upper()
+    # curr_model_name = 'Carman_' + workflow + '_Hip_' + curr_side.upper()
     
     # set output model name
     output_model_file_name = curr_model_name + '.osim'

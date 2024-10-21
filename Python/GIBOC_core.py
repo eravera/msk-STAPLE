@@ -1846,7 +1846,7 @@ def plotCylinder(symmetry_axis, radius, center, length, ax, alpha = 0.6, color =
     
     # rotate the samples
     Uz = preprocessing.normalize(symmetry_axis, axis=0)
-    i = np.array([1,0,0])
+    i = np.array([0,0,1])
     i = np.reshape(i,(i.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     Ux = np.cross(Uz.T,i.T).T
     Ux = preprocessing.normalize(Ux, axis=0)

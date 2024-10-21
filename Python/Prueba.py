@@ -430,23 +430,23 @@ for pos in range(i+2):
 # ax.set_ylim([-1, 1.5])
 # ax.set_zlim([-1, 8])
 # plt.show()
+###############################################################################
+# #%% prueba de funcion pelvis_gess_CS
+# BCS = {}
+# JCS = {}
+# BL = {}
+# # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
+# pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
+# # pelvisTri = load_mesh(ruta + 'Python/pelvis_new.stl')
 
-#%% prueba de funcion pelvis_gess_CS
-BCS = {}
-JCS = {}
-BL = {}
-# pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
-pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
-# pelvisTri = load_mesh(ruta + 'Python/pelvis_new.stl')
+# # RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
 
-# RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
-
-BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
-
-
-# plotDot(TMPtriangle['Points'][10,:], 'k', 7)
+# BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
 
 
+# # plotDot(TMPtriangle['Points'][10,:], 'k', 7)
+
+###############################################################################
 #%% prueba de funcion femur_guess_CS
 
 # # reduce number of triangles
@@ -502,17 +502,20 @@ BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
 
 # # Write the mesh to file "pelvis_new.stl"
 # new_mesh1.save(ruta + 'Python/femur_new_simplify.stl')
-
+###############################################################################
 
 # aca aranca el codigo:
-femurTri = load_mesh(ruta + 'Python/femur_new_simplify.stl')
+# femurTri = load_mesh(ruta + 'Python/femur_new_simplify.stl')
+femurTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/femur_r.stl')
 # # femurTri = load_mesh(ruta + 'Python/Femur_predicted.stl')
 # femur_name = 'femur_r'
-# BCS = {}
-# JCS = {}
-# BL = {}
+BCS = {}
+JCS = {}
+BL = {}
 AuxCSInfo = {}
-BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_femur(femurTri, 'r', 'cylinder', 0, 0)
+BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_femur(femurTri, 'r', 'cylinder', 1, 0)
+# U_DistToProx = femur_guess_CS(femurTri)
+# ProxFemTri, DistFemTri = cutLongBoneMesh(femurTri, U_DistToProx)
 
 #%% prueba de funcion femur_guess_CS
 
@@ -570,13 +573,13 @@ BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_f
 # # Write the mesh to file "tibia_new_simplify.stl"
 # new_mesh1.save(ruta + 'Python/tibia_new_simplify.stl')
 
+###############################################################################
+# # aca aranca el codigo:
+# tibiaTri = load_mesh(ruta + 'Python/tibia_new_simplify.stl')
 
-# aca aranca el codigo:
-tibiaTri = load_mesh(ruta + 'Python/tibia_new_simplify.stl')
+# BCS['tibia_r'], JCS['tibia_r'], BL['tibia_r'], AuxCSInfo['tibia_r'] = Kai2014_tibia(tibiaTri, 'r', 0)
 
-BCS['tibia_r'], JCS['tibia_r'], BL['tibia_r'], AuxCSInfo['tibia_r'] = Kai2014_tibia(tibiaTri, 'r', 0)
-
-
+###############################################################################
 #%% ----------------------------------------------------------------------
 
 # # def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParamFile = 'getJointParams'):
@@ -949,9 +952,9 @@ BCS['tibia_r'], JCS['tibia_r'], BL['tibia_r'], AuxCSInfo['tibia_r'] = Kai2014_ti
 
 # fig = plt.figure()
 # ax = fig.add_subplot(projection = '3d')
-# ax.plot_trisurf(tibiaTri['Points'][:,0], tibiaTri['Points'][:,1], tibiaTri['Points'][:,2], triangles = tibiaTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
-# # # # # ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
-# # # # ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# # ax.plot_trisurf(tibiaTri['Points'][:,0], tibiaTri['Points'][:,1], tibiaTri['Points'][:,2], triangles = tibiaTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
+# ax.plot_trisurf(ProxFemTri['Points'][:,0], ProxFemTri['Points'][:,1], ProxFemTri['Points'][:,2], triangles = ProxFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'gray')
+# ax.plot_trisurf(DistFemTri['Points'][:,0], DistFemTri['Points'][:,1], DistFemTri['Points'][:,2], triangles = DistFemTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, shade=False, color = 'blue')
 # ax.set_box_aspect([1,3,1])
 # # # ax.plot_trisurf(Condyle['Points'][:,0], Condyle['Points'][:,1], Condyle['Points'][:,2], triangles = Condyle['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.3, shade=False, color = 'blue')
 # # # ax.plot_trisurf(Condyle_edges['Points'][:,0], Condyle_edges['Points'][:,1], Condyle_edges['Points'][:,2], triangles = Condyle_edges['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.9, shade=False, color = 'red')

@@ -482,7 +482,7 @@ def femur_guess_CS(Femur, debug_plots = 0):
                   color='olivedrab', length = 50)
         
         ax.plot_trisurf(Femur['Points'][:,0], Femur['Points'][:,1], Femur['Points'][:,2], \
-                         triangles = Femur['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.5, color = 'cyan', shade=False)
+                         triangles = Femur['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=1.0, alpha=0.1, color = 'cyan', shade=False)
         
         ax.set_box_aspect([1,1,1])
         ax.grid(True)
@@ -1053,7 +1053,7 @@ def GIBOC_femur_getCondyleMostProxPoint(EpiFem, CSs, PtsCondylesTrace, U):
     # update normals
     tmp_EpiFem.update_normals()
     # ------------------------------------------------
-    sphere_search_radius = 7.5
+    sphere_search_radius = 30 #7.5
     plane_search_thick = 2.5
     
     # fitting a lq plane to point in the trace
@@ -2046,7 +2046,8 @@ def CS_femur_CylinderOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots 
     Z_dir = np.reshape(Z_dir,(Z_dir.size, 1)) # convert 1d (3,) to 2d (3,1) vector
 
     # ----------------------------------------
-    tmp_axe = Axe0 - Center0
+    # tmp_axe = Axe0 - Center0
+    tmp_axe = np.dot(Axe0.T, CS['V_all']).T
     # identify plane which proyection is a circunference, i.e.: plane XY, YZ or XZ)
     PoP = np.argmin(np.abs(tmp_axe))
     if PoP == 0:
@@ -2069,15 +2070,16 @@ def CS_femur_CylinderOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots 
 
     est_p =  cylinderFitting(xyz, p, th)
     # ------------------------------------------------------------
-    x0n = np.zeros((3,1))
-    x0n[x1] = est_p[0]
-    x0n[x2] = est_p[1]
-    x0n[PoP] = Center0[PoP][0]
+    # x0n = np.zeros((3,1))
+    # x0n[x1] = est_p[0]
+    # x0n[x2] = est_p[1]
+    # x0n[PoP] = Center0[PoP][0]
+    x0n = Center0
     
     rn = est_p[4]
     an = np.zeros((3,1))
-    an[x1] = rn*np.cos(est_p[3])
-    an[PoP] = rn*np.cos(est_p[2])
+    an[x1] = rn*np.cos(est_p[2])
+    an[PoP] = rn*np.cos(est_p[3])
     an[Saxis] = tmp_axe[Saxis][0]
 
     # Y2 is the cylinder axis versor

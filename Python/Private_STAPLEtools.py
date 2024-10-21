@@ -1029,7 +1029,7 @@ def GIBOC_femur_getCondyleMostProxPoint(EpiFem, CSs, PtsCondylesTrace, U):
     # update normals
     tmp_EpiFem.update_normals()
     # ------------------------------------------------
-    sphere_search_radius = 7.5
+    sphere_search_radius = 30 #7.5
     plane_search_thick = 2.5
     
     # fitting a lq plane to point in the trace
@@ -1505,6 +1505,8 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     
     if in_mm == 1:
         dim_fact = 0.001
+    else:
+        dim_fact = 1
         
     # get side id correspondent to body side (used for hip joint parent)
     # no need for sign, left and right rf are identical
@@ -1598,7 +1600,7 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     JCS['ground_pelvis'] = {}
     JCS['ground_pelvis']['V'] = BCS['V']
     JCS['ground_pelvis']['Origin'] = PelvisOr
-    JCS['ground_pelvis']['child_location'] = PelvisOr*dim_fact#PelvisOr.T*dim_fact # [1x3] as in OpenSim
+    JCS['ground_pelvis']['child_location'] = PelvisOr*dim_fact #PelvisOr.T*dim_fact # [1x3] as in OpenSim
     JCS['ground_pelvis']['child_orientation'] = computeXYZAngleSeq(BCS['V']) # [1x3] as in OpenSim
     
     # define hip parent
@@ -2022,7 +2024,8 @@ def CS_femur_CylinderOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots 
     Z_dir = np.reshape(Z_dir,(Z_dir.size, 1)) # convert 1d (3,) to 2d (3,1) vector
 
     # ----------------------------------------
-    tmp_axe = Axe0 - Center0
+    # tmp_axe = Axe0 - Center0
+    tmp_axe = np.dot(Axe0.T, CS['V_all']).T
     # identify plane which proyection is a circunference, i.e.: plane XY, YZ or XZ)
     PoP = np.argmin(np.abs(tmp_axe))
     if PoP == 0:
@@ -2045,20 +2048,20 @@ def CS_femur_CylinderOnCondyles(Condyle_Lat, Condyle_Med, CS, side, debug_plots 
 
     est_p =  cylinderFitting(xyz, p, th)
     # ------------------------------------------------------------
-    x0n = np.zeros((3,1))
-    x0n[x1] = est_p[0]
-    x0n[x2] = est_p[1]
-    x0n[PoP] = Center0[PoP][0]
+    # x0n = np.zeros((3,1))
+    # x0n[x1] = est_p[0]
+    # x0n[x2] = est_p[1]
+    # x0n[PoP] = Center0[PoP][0]
+    x0n = Center0
     
     rn = est_p[4]
     an = np.zeros((3,1))
-    an[x1] = rn*np.cos(est_p[3])
-    an[PoP] = rn*np.cos(est_p[2])
+    an[x1] = rn*np.cos(est_p[2])
+    an[PoP] = rn*np.cos(est_p[3])
     an[Saxis] = tmp_axe[Saxis][0]
 
     # Y2 is the cylinder axis versor
     Y2 = preprocessing.normalize(an, axis=0)
-
 
     # compute areas properties of condyles
     PptiesLat = TriMesh2DProperties(Condyle_Lat)
@@ -4491,7 +4494,7 @@ def plotCylinder(symmetry_axis, radius, center, length, ax, alpha = 0.6, color =
     
     # rotate the samples
     Uz = preprocessing.normalize(symmetry_axis, axis=0)
-    i = np.array([1,0,0])
+    i = np.array([0,0,1])
     i = np.reshape(i,(i.size, 1)) # convert 1d (3,) to 2d (3,1) vector
     Ux = np.cross(Uz.T,i.T).T
     Ux = preprocessing.normalize(Ux, axis=0)
@@ -5674,14 +5677,20 @@ def computeXYZAngleSeq(aRotMat):
     orientation = np.zeros((1,3))
     
     # fixed body sequence of angles from rot mat usable for orientation in OpenSim
-    beta = np.arctan2(aRotMat[0,2], np.sqrt(aRotMat[0,0]**2 + aRotMat[0,1]**2))
-    alpha = np.arctan2(-aRotMat[1,2]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
-    gamma = np.arctan2(-aRotMat[0,1]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
+    # beta = np.arctan2(aRotMat[0,2], np.sqrt(aRotMat[0,0]**2 + aRotMat[0,1]**2))
+    # alpha = np.arctan2(-aRotMat[1,2]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
+    # gamma = np.arctan2(-aRotMat[0,1]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
+    beta = np.arctan2(aRotMat[2,0], np.sqrt(aRotMat[0,0]**2 + aRotMat[1,0]**2))
+    alpha = np.arctan2(-aRotMat[2,1]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
+    gamma = np.arctan2(-aRotMat[1,0]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
     
     # build a vector
-    orientation[0,0] = beta
-    orientation[0,1] = alpha
-    orientation[0,2] = gamma
+    # orientation[0,0] = beta*(180/np.pi)
+    # orientation[0,1] = alpha*(180/np.pi)
+    # orientation[0,2] = gamma*(180/np.pi)
+    orientation[0,2] = beta*(180/np.pi)
+    orientation[0,0] = alpha*(180/np.pi)
+    orientation[0,1] = gamma*(180/np.pi)
     
     return orientation
 
@@ -6704,12 +6713,10 @@ def createOpenSimModelJoints(osimModel, JCS, joint_defs = 'auto2020', jointParam
                                             child_frame, location_in_child, orientation_in_child,\
                                             jointSpatialTransf)
         
+        # update socket_frame
         myCustomJoint.getSocket('parent_frame').setConnecteePath(parentName + '_offset')
         myCustomJoint.getSocket('child_frame').setConnecteePath(childName + '_offset')
-        # # myCustomJoint.connectSocket_parent_frame(parent_frame)
-        # # myCustomJoint.connectSocket_child_frame(child_frame)
-        # myCustomJoint.get_frames(0).connectSocket_parent(parent_frame)
-        # myCustomJoint.get_frames(1).connectSocket_parent(child_frame)
+
         # add joint to model
         osimModel.addJoint(myCustomJoint)
         

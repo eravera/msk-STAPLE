@@ -1634,12 +1634,17 @@ def PlanPolygonCentroid3D(Pts):
     _, V = np.linalg.eig(np.cov(Pts[:-1].T))
     n = V[0] # normal to polygon plan
     
-    TrianglesArea = 1/2*np.dot(np.cross(np.diff(Pts, axis = 0),-(Pts[:-1]-Center0)), n)
+    TrianglesArea = np.abs(1/2*np.dot(np.cross(np.diff(Pts, axis = 0),-(Pts[:-1]-Center0)), n))
     
     # Barycenter of triangles
-    Centroid = np.sum(TrianglesCentroid*np.tile(TrianglesArea, [3,1]).T, axis = 0)/np.sum(TrianglesArea)
+    # print('TrianglesArea: ', np.sum(TrianglesArea))
+    if np.sum(TrianglesArea) != 0:
+        Centroid = np.sum(TrianglesCentroid*np.tile(TrianglesArea, [3,1]).T, axis = 0)/np.sum(TrianglesArea)
+        
+        Area = np.abs(np.sum(TrianglesArea))
+    # Centroid = np.sum(TrianglesCentroid*np.tile(TrianglesArea, [3,1]).T, axis = 0)/np.sum(TrianglesArea)
     
-    Area = np.abs(np.sum(TrianglesArea))
+    # Area = np.abs(np.sum(TrianglesArea))
     
     return Centroid, Area
     

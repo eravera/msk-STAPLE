@@ -431,20 +431,173 @@ for pos in range(i+2):
 # ax.set_zlim([-1, 8])
 # plt.show()
 ###############################################################################
-# #%% prueba de funcion pelvis_gess_CS
-# BCS = {}
-# JCS = {}
-# BL = {}
-# # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
+#%% prueba de funcion pelvis_gess_CS
+BCS = {}
+JCS = {}
+BL = {}
+# pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
 # pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
-# # pelvisTri = load_mesh(ruta + 'Python/pelvis_new.stl')
+pelvisTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
 
-# # RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
+# RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
 
-# BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
+BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
 
 
-# # plotDot(TMPtriangle['Points'][10,:], 'k', 7)
+# define HJC from pelvis bone
+debug_prints = 1
+debug_plots = 1
+
+o = BCS['pelvis']['Origin'].T
+
+vec_x = BCS['pelvis']['V'][:,0]
+vec_z = BCS['pelvis']['V'][:,1]
+vec_y = BCS['pelvis']['V'][:,2]
+# vec_x = BCS['pelvis']['V'][:,0]
+# vec_y = BCS['pelvis']['V'][:,2]
+# vec_z = BCS['pelvis']['V'][:,1]
+
+PW = np.linalg.norm(BL['pelvis']['RASIS'] - BL['pelvis']['LASIS']) # in mm
+PD = np.linalg.norm((BL['pelvis']['RASIS'] + BL['pelvis']['LASIS'])/2 - (BL['pelvis']['RPSIS'] + BL['pelvis']['LPSIS'])/2) # in mm
+# ---------------------------------------
+
+# Predictive Harrington 2 :::::::::::::::
+# Left side
+HJCx = -0.24*PD - 9.9
+HJCy = 0.33*PW + 7.3
+HJCz = -0.30*PW - 10.9
+
+# Harrington_l = o + (HJCx*vec_x - HJCy*vec_z + HJCz*vec_y)
+Harrington_l = o + (HJCx*vec_x - 1.5*HJCy*vec_y + HJCz*vec_z)
+
+# Rigth side
+# HJCx = -0.24*PD - 9.9
+# HJCy = 0.33*PW + 7.3
+# HJCz = -0.30*PW - 10.9
+
+# Harrington_r = o + (HJCx*vec_x + HJCy*vec_z + HJCz*vec_y)
+Harrington_r = o + (HJCx*vec_x + 1.5*HJCy*vec_y + 1*HJCz*vec_z)
+
+# project vectors on X
+I_r = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_r), BCS['pelvis']['V'][:,1]))
+I_l = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_l), BCS['pelvis']['V'][:,1]))
+
+pto_HJC_r = np.where(pelvisTri['ConnectivityList'] == I_r)[0]
+pto_HJC_l = np.where(pelvisTri['ConnectivityList'] == I_l)[0]
+
+# triang around it
+Face_HJC_r = TriReduceMesh(pelvisTri, pto_HJC_r)
+Face_HJC_l = TriReduceMesh(pelvisTri, pto_HJC_l)
+
+# create a triang with them
+Face_HJC_r = TriDilateMesh(pelvisTri, Face_HJC_r, 6)
+Face_HJC_l = TriDilateMesh(pelvisTri, Face_HJC_l, 6)
+
+
+HJC_r, Radius_HJC_r, ErrorDist_HJC_r = sphere_fit(Face_HJC_r['Points'])
+sph_RMSE_r = np.mean(np.abs(ErrorDist_HJC_r))/10
+
+HJC_l, Radius_HJC_l, ErrorDist_HJC_l = sphere_fit(Face_HJC_l['Points'])
+sph_RMSE_l = np.mean(np.abs(ErrorDist_HJC_l))/10
+
+# print
+print('     Fit R: RMSE: ' + str(sph_RMSE_r) + ' mm');
+
+if debug_prints:
+    print('----------------')
+    print('Right Estimation')
+    print('----------------')
+    print('Centre: ' + str(HJC_r))
+    print('Radius: ' + str(Radius_HJC_r))
+    print('Mean Res: ' + str(sph_RMSE_r))
+    print('-----------------')
+
+# print
+print('     Fit L: RMSE: ' + str(sph_RMSE_r) + ' mm');
+
+if debug_prints:
+    print('----------------')
+    print('Left Estimation')
+    print('----------------')
+    print('Centre: ' + str(HJC_l))
+    print('Radius: ' + str(Radius_HJC_l))
+    print('Mean Res: ' + str(sph_RMSE_l))
+    print('-----------------')
+
+
+
+
+# # Write to the results dictionary
+# CSs['CenterFH']  = Center.T
+# CSs['RadiusFH']  =  Radius
+# CSs['sph_RMSEFH']  =  sph_RMSE
+
+
+if debug_plots:
+    fig = plt.figure()
+    ax = fig.add_subplot(projection = '3d')
+    
+    ax.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
+                    triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=0.5, alpha=0.1, shade=False, color = 'gray')
+    ax.plot_trisurf(Face_HJC_r['Points'][:,0], Face_HJC_r['Points'][:,1], Face_HJC_r['Points'][:,2], \
+                      triangles = Face_HJC_r['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'blue')    
+
+    ax.plot_trisurf(Face_HJC_l['Points'][:,0], Face_HJC_l['Points'][:,1], Face_HJC_l['Points'][:,2], \
+                      triangles = Face_HJC_l['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'red')
+    
+    quickPlotRefSystem(BCS['pelvis'], ax)    
+    # Plot sphere
+    # Create a sphere
+    phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+    x = Radius_HJC_r*np.sin(phi)*np.cos(theta)
+    y = Radius_HJC_r*np.sin(phi)*np.sin(theta)
+    z = Radius_HJC_r*np.cos(phi)
+
+    ax.plot_surface(x + HJC_r[0,0], y + HJC_r[0,1], z + HJC_r[0,2], \
+                    color = 'blue', alpha=0.4)
+    ax.plot_surface(x + HJC_l[0,0], y + HJC_l[0,1], z + HJC_l[0,2], \
+                    color = 'red', alpha=0.4)
+    
+    ax.set_box_aspect([1,1,1])
+    plt.show()
+
+
+
+
+
+
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection = '3d')
+# # Plot the triangulation object with grey color
+# ax.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
+#                   triangles = pelvisTri['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.1, color = 'grey')
+
+# ax.plot_trisurf(Face_HJC_r['Points'][:,0], Face_HJC_r['Points'][:,1], Face_HJC_r['Points'][:,2], \
+#                   triangles = Face_HJC_r['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'blue')    
+
+# ax.plot_trisurf(Face_HJC_l['Points'][:,0], Face_HJC_l['Points'][:,1], Face_HJC_l['Points'][:,2], \
+#                   triangles = Face_HJC_l['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'red')
+# # Remove grid
+# ax.grid(False)
+
+
+# quickPlotRefSystem(BCS['pelvis'], ax)
+
+# # Plot sphere
+# # Create a sphere
+# phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+# x = 5*np.sin(phi)*np.cos(theta)
+# y = 5*np.sin(phi)*np.sin(theta)
+# z = 5*np.cos(phi)
+
+# ax.plot_surface(x + Harrington_r[0,0], y + Harrington_r[0,1], z + Harrington_r[0,2], color = 'blue', alpha=0.8)
+# ax.plot_surface(x + Harrington_l[0,0], y + Harrington_l[0,1], z + Harrington_l[0,2], color = 'red', alpha=0.8)
+
+# ax.plot_surface(x + proy_HJC_r[0], y + proy_HJC_r[1], z + proy_HJC_r[2], color = 'magenta', alpha=0.8)
+# ax.plot_surface(x + proy_HJC_l[0], y + proy_HJC_l[1], z + proy_HJC_l[2], color = 'magenta', alpha=0.8)
+
+
+# plotDot(TMPtriangle['Points'][10,:], 'k', 7)
 
 ###############################################################################
 #%% prueba de funcion femur_guess_CS
@@ -504,18 +657,18 @@ for pos in range(i+2):
 # new_mesh1.save(ruta + 'Python/femur_new_simplify.stl')
 ###############################################################################
 
-# aca aranca el codigo:
-# femurTri = load_mesh(ruta + 'Python/femur_new_simplify.stl')
-femurTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/femur_r.stl')
-# # femurTri = load_mesh(ruta + 'Python/Femur_predicted.stl')
-# femur_name = 'femur_r'
-BCS = {}
-JCS = {}
-BL = {}
-AuxCSInfo = {}
-BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_femur(femurTri, 'r', 'cylinder', 1, 0)
-# U_DistToProx = femur_guess_CS(femurTri)
-# ProxFemTri, DistFemTri = cutLongBoneMesh(femurTri, U_DistToProx)
+# # aca aranca el codigo:
+# # femurTri = load_mesh(ruta + 'Python/femur_new_simplify.stl')
+# femurTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/femur_r.stl')
+# # # femurTri = load_mesh(ruta + 'Python/Femur_predicted.stl')
+# # femur_name = 'femur_r'
+# BCS = {}
+# JCS = {}
+# BL = {}
+# AuxCSInfo = {}
+# BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_femur(femurTri, 'r', 'cylinder', 1, 0)
+# # U_DistToProx = femur_guess_CS(femurTri)
+# # ProxFemTri, DistFemTri = cutLongBoneMesh(femurTri, U_DistToProx)
 
 #%% prueba de funcion femur_guess_CS
 
@@ -575,7 +728,12 @@ BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_f
 
 ###############################################################################
 # # aca aranca el codigo:
-# tibiaTri = load_mesh(ruta + 'Python/tibia_new_simplify.stl')
+# # tibiaTri = load_mesh(ruta + 'Python/tibia_new_simplify.stl')
+# tibiaTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/tibia_r.stl')
+# BCS = {}
+# JCS = {}
+# BL = {}
+# AuxCSInfo = {}
 
 # BCS['tibia_r'], JCS['tibia_r'], BL['tibia_r'], AuxCSInfo['tibia_r'] = Kai2014_tibia(tibiaTri, 'r', 0)
 
@@ -938,10 +1096,13 @@ BCS['femur_r'], JCS['femur_r'], BL['femur_r'], _, AuxCSInfo['femur_r'] = GIBOC_f
 # # return 0
 
 
+#%% -----------------------------------------------------------------------------
+# V = np.zeros((3,3))
+# V[:,0] = np.array([1, 2, 3])
+# V[:,1] = np.array([0, 1, 0])
+# V[:,2] = np.array([1, 1, 0])
 
-
-
-
+# orientation = computeXYZAngleSeq(V)
 
 
 

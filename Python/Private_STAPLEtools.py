@@ -1598,15 +1598,15 @@ def STAPLE_pelvis(Pelvis, side_raw = 'right', result_plots = 1, debug_plots = 0,
     
     # storing joint details
     JCS['ground_pelvis'] = {}
-    JCS['ground_pelvis']['V'] = BCS['V']
+    JCS['ground_pelvis']['V'] = BCS['V'].T
     JCS['ground_pelvis']['Origin'] = PelvisOr
     JCS['ground_pelvis']['child_location'] = PelvisOr*dim_fact #PelvisOr.T*dim_fact # [1x3] as in OpenSim
-    JCS['ground_pelvis']['child_orientation'] = computeXYZAngleSeq(BCS['V']) # [1x3] as in OpenSim
+    JCS['ground_pelvis']['child_orientation'] = computeXYZAngleSeq(BCS['V'].T) # [1x3] as in OpenSim
     
     # define hip parent
     hip_name = 'hip_' + side_low
     JCS[hip_name] = {}
-    JCS[hip_name]['parent_orientation'] = computeXYZAngleSeq(BCS['V'])
+    JCS[hip_name]['parent_orientation'] = computeXYZAngleSeq(BCS['V'].T)
     
     # Export bone landmarks: [3x1] vectors
     PelvisBL['RASIS'] = RASIS
@@ -4282,12 +4282,16 @@ def PlanPolygonCentroid3D(Pts):
     _, V = np.linalg.eig(np.cov(Pts[:-1].T))
     n = V[0] # normal to polygon plan
     
-    TrianglesArea = 1/2*np.dot(np.cross(np.diff(Pts, axis = 0),-(Pts[:-1]-Center0)), n)
+    TrianglesArea = np.abs(1/2*np.dot(np.cross(np.diff(Pts, axis = 0),-(Pts[:-1]-Center0)), n))
     
     # Barycenter of triangles
-    Centroid = np.sum(TrianglesCentroid*np.tile(TrianglesArea, [3,1]).T, axis = 0)/np.sum(TrianglesArea)
+    if np.sum(TrianglesArea) != 0:
+        Centroid = np.sum(TrianglesCentroid*np.tile(TrianglesArea, [3,1]).T, axis = 0)/np.sum(TrianglesArea)
+        
+        Area = np.abs(np.sum(TrianglesArea))
+    # Centroid = np.sum(TrianglesCentroid*np.tile(TrianglesArea, [3,1]).T, axis = 0)/np.sum(TrianglesArea)
     
-    Area = np.abs(np.sum(TrianglesArea))
+    # Area = np.abs(np.sum(TrianglesArea))
     
     return Centroid, Area
     
@@ -5141,7 +5145,7 @@ def landmarkBoneGeom(TriObj, CS, bone_name, debug_plots = 0):
     return Landmarks
 
 # -----------------------------------------------------------------------------
-def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE', algo_femur = 'GIBOC-cylinder', algo_tibia = 'Kai2014', result_plots = 0, debug_plots = 0, in_mm = 1):
+def processTriGeomBoneSet(triGeomBoneSet, side_raw = '', algo_pelvis = 'STAPLE', algo_femur = 'GIBOC-spheres', algo_tibia = 'Kai2014', result_plots = 0, debug_plots = 0, in_mm = 1):
     # -------------------------------------------------------------------------
     #  Compute parameters of the lower limb joints associated with the bone 
     # geometries provided as input through a set of triangulations dictionary.
@@ -5677,20 +5681,20 @@ def computeXYZAngleSeq(aRotMat):
     orientation = np.zeros((1,3))
     
     # fixed body sequence of angles from rot mat usable for orientation in OpenSim
-    # beta = np.arctan2(aRotMat[0,2], np.sqrt(aRotMat[0,0]**2 + aRotMat[0,1]**2))
-    # alpha = np.arctan2(-aRotMat[1,2]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
-    # gamma = np.arctan2(-aRotMat[0,1]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
-    beta = np.arctan2(aRotMat[2,0], np.sqrt(aRotMat[0,0]**2 + aRotMat[1,0]**2))
-    alpha = np.arctan2(-aRotMat[2,1]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
-    gamma = np.arctan2(-aRotMat[1,0]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
+    beta = np.arctan2(aRotMat[0,2], np.sqrt(aRotMat[0,0]**2 + aRotMat[0,1]**2))
+    alpha = np.arctan2(-aRotMat[1,2]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
+    gamma = np.arctan2(-aRotMat[0,1]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
+    # beta = np.arctan2(aRotMat[2,0], np.sqrt(aRotMat[0,0]**2 + aRotMat[1,0]**2))
+    # alpha = np.arctan2(-aRotMat[2,1]/np.cos(beta), aRotMat[2,2]/np.cos(beta))
+    # gamma = np.arctan2(-aRotMat[1,0]/np.cos(beta), aRotMat[0,0]/np.cos(beta))
     
     # build a vector
-    # orientation[0,0] = beta*(180/np.pi)
-    # orientation[0,1] = alpha*(180/np.pi)
-    # orientation[0,2] = gamma*(180/np.pi)
-    orientation[0,2] = beta*(180/np.pi)
-    orientation[0,0] = alpha*(180/np.pi)
-    orientation[0,1] = gamma*(180/np.pi)
+    # orientation[0,0] = beta
+    # orientation[0,1] = alpha
+    # orientation[0,2] = gamma
+    orientation[0,1] = beta
+    orientation[0,0] = alpha
+    orientation[0,2] = gamma
     
     return orientation
 

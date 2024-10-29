@@ -44,7 +44,7 @@ curr_side = 'r'
 # generic model to use as baseline model
 Generic_osimModel_file = os.path.join(path_file, output_models_folder, 'GAIT2392_SCALED.osim')
 # STAPLE generated model that we want to merge with the generic baseline
-Specific_osimModel_file = os.path.join(path_file, output_models_folder, 'Ejemplo_OpenSimCreator.osim')
+Specific_osimModel_file = os.path.join(path_file, output_models_folder, 'Carman_auto2020_HipKnee_R.osim')
 
 
 # create model folder if required
@@ -83,28 +83,33 @@ for body in listOfBodiesFoot:
     #  add scaled body to specific model
     Specific_osimModel.addBody(scaled_body)
 
-# # The ankle parent frame of the generic model will be the parent frame of 
-# # the joint connecting the two models.
-# specific_tibia_child_frame = Specific_osimModel.getJointSet().get('tibia_' + curr_side).get_frames(1)
-# specific_tibia_child_frame.get_translation
-# specific_tibia_child_frame.get_orientation
+Generic_MarkerSet = Generic_osimModel.getMarkerSet()
+Specific_MarkerSet = Specific_osimModel.getMarkerSet()
 
-# # update PhysicalOffsetFrame socket_frame
-# osimModel.getJointSet().get(cur_joint_name).getParentFrame().getSocket('parent').setConnecteePath(parent_frame.getAbsolutePathString())
-# osimModel.getJointSet().get(cur_joint_name).getChildFrame().getSocket('parent').setConnecteePath(child_frame.getAbsolutePathString())
+for marker in Specific_MarkerSet.getComponentsList():
+    if marker.getName() == 'RANK':
+        tmp = marker.get_location()
+        ank_r = np.array([tmp[0], tmp[1], tmp[2]]) 
+    if marker.getName() == 'RMMA':
+        tmp = marker.get_location()
+        mma_r = np.array([tmp[0], tmp[1], tmp[2]])
+
+ankle_r = 0.5*(ank_r + mma_r)
 
 for joint in listOfJointsFoot:
     
     # get body from scaled model 
     scaled_joint = Generic_osimModel.getJointSet().get(joint)
-    
+    if joint == 'ankle_r':
+        
+        scaled_joint.get_frames(0).set_translation(opensim.Vec3(ankle_r[0],ankle_r[1],ankle_r[2]))
+        orientation = Specific_osimModel.getJointSet().get('knee_r').get_frames(1).get_orientation()
+        scaled_joint.get_frames(0).set_orientation(orientation)
+        
     #  add scaled body to specific model
     Specific_osimModel.addJoint(scaled_joint)
 
 Specific_osimModel.initSystem()
-
-Generic_MarkerSet = Generic_osimModel.getMarkerSet()
-Specific_MarkerSet = Specific_osimModel.getMarkerSet()
 
 newMarkerSet = Specific_MarkerSet.clone()
 

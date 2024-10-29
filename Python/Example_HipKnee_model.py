@@ -116,7 +116,6 @@ for curr_dataset in dataset_set:
     # process bone geometries (compute joint parameters and identify markers)
     [JCS, BL, CS] = processTriGeomBoneSet(triGeom_set, side)
     
-    
     # initialize OpenSim model
     osimModel = initializeOpenSimModel(curr_model_name)
     

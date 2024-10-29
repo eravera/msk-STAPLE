@@ -431,135 +431,250 @@ for pos in range(i+2):
 # ax.set_zlim([-1, 8])
 # plt.show()
 ###############################################################################
+
+# -----------------------------------------------------------------------------
+def Ravera_pelvis_ArticSurf(pelvisTri = {}, BCS = {}, JCS = {}, BL = {}, CoeffMorpho = 6, debug_prints = 0, debug_plots=0, in_mm = 1):
+    # -------------------------------------------------------------------------
+    if in_mm == 1:
+        dim_fact = 0.001
+    else:
+        dim_fact = 1
+    # ------------------
+    o = BCS['Origin'].T
+
+    vec_x = BCS['V'][:,0]
+    vec_z = BCS['V'][:,1]
+    vec_y = BCS['V'][:,2]
+
+    PW = np.linalg.norm(BL['RASIS'] - BL['LASIS']) # in mm
+    PD = np.linalg.norm((BL['RASIS'] + BL['LASIS'])/2 - (BL['RPSIS'] + BL['LPSIS'])/2) # in mm
+    # ---------------------------------------
+
+    # Predictive Harrington 2 :::::::::::::::
+    # Left side
+    HJCx = -0.24*PD - 9.9
+    HJCy = 0.33*PW + 7.3
+    HJCz = -0.30*PW - 10.9
+
+    # Harrington_l = o + (HJCx*vec_x - HJCy*vec_z + HJCz*vec_y)
+    Harrington_l = o + (HJCx*vec_x - 1.5*HJCy*vec_y + HJCz*vec_z)
+
+    # Harrington_r = o + (HJCx*vec_x + HJCy*vec_z + HJCz*vec_y)
+    Harrington_r = o + (HJCx*vec_x + 1.5*HJCy*vec_y + 1*HJCz*vec_z)
+
+    # project vectors on X
+    I_r = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_r), BCS['V'][:,1]))
+    I_l = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_l), BCS['V'][:,1]))
+
+    pto_HJC_r = np.where(pelvisTri['ConnectivityList'] == I_r)[0]
+    pto_HJC_l = np.where(pelvisTri['ConnectivityList'] == I_l)[0]
+
+    # triang around it
+    Face_HJC_r = TriReduceMesh(pelvisTri, pto_HJC_r)
+    Face_HJC_l = TriReduceMesh(pelvisTri, pto_HJC_l)
+
+    # create a triang with them
+    Face_HJC_r = TriDilateMesh(pelvisTri, Face_HJC_r, 6)
+    Face_HJC_l = TriDilateMesh(pelvisTri, Face_HJC_l, 6)
+
+
+    HJC_r, Radius_HJC_r, ErrorDist_HJC_r = sphere_fit(Face_HJC_r['Points'])
+    sph_RMSE_r = np.mean(np.abs(ErrorDist_HJC_r))/10
+    # print
+    print('     Fitting Hip Joint Center R: RMSE: ' + str(sph_RMSE_r) + ' mm')
+        
+    HJC_l, Radius_HJC_l, ErrorDist_HJC_l = sphere_fit(Face_HJC_l['Points'])
+    sph_RMSE_l = np.mean(np.abs(ErrorDist_HJC_l))/10
+    # print
+    print('     Fitting Hip Joint Center L: RMSE: ' + str(sph_RMSE_l) + ' mm')
+
+    if debug_prints:
+        print('----------------')
+        print('Right Estimation')
+        print('----------------')
+        print('Centre: ' + str(HJC_r[0]))
+        print('Radius: ' + str(Radius_HJC_r))
+        print('Mean Res: ' + str(sph_RMSE_r))
+        print('-----------------')
+        
+        print('----------------')
+        print('Left Estimation')
+        print('----------------')
+        print('Centre: ' + str(HJC_l[0]))
+        print('Radius: ' + str(Radius_HJC_l))
+        print('Mean Res: ' + str(sph_RMSE_l))
+        print('-----------------')
+
+    if debug_plots:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection = '3d')
+        
+        ax.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
+                        triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=0.5, alpha=0.1, shade=False, color = 'gray')
+        ax.plot_trisurf(Face_HJC_r['Points'][:,0], Face_HJC_r['Points'][:,1], Face_HJC_r['Points'][:,2], \
+                          triangles = Face_HJC_r['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'blue')    
+
+        ax.plot_trisurf(Face_HJC_l['Points'][:,0], Face_HJC_l['Points'][:,1], Face_HJC_l['Points'][:,2], \
+                          triangles = Face_HJC_l['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'red')
+        
+        quickPlotRefSystem(BCS, ax)    
+        # Plot sphere
+        # Create a sphere
+        phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+        x = Radius_HJC_r*np.sin(phi)*np.cos(theta)
+        y = Radius_HJC_r*np.sin(phi)*np.sin(theta)
+        z = Radius_HJC_r*np.cos(phi)
+
+        ax.plot_surface(x + HJC_r[0,0], y + HJC_r[0,1], z + HJC_r[0,2], \
+                        color = 'blue', alpha=0.4)
+        ax.plot_surface(x + HJC_l[0,0], y + HJC_l[0,1], z + HJC_l[0,2], \
+                        color = 'red', alpha=0.4)
+        
+        ax.set_box_aspect([1,1,1])
+        plt.show()
+    
+    # Write to the results dictionary
+    BCS['HJC_r']  = HJC_r
+    BCS['Radius_r']  =  Radius_HJC_r
+    BCS['sph_RMSE_r']  =  sph_RMSE_r
+    
+    BCS['HJC_l']  = HJC_l
+    BCS['Radius_l']  =  Radius_HJC_l
+    BCS['sph_RMSE_l']  =  sph_RMSE_l
+    
+    if 'hip_r' in JCS:
+        JCS['hip_r']['parent_location'] = HJC_r.T*dim_fact
+        
+    if 'hip_l' in JCS:
+        JCS['hip_l']['parent_location'] = HJC_l.T*dim_fact
+        
+    return BCS, JCS
+
+
 #%% prueba de funcion pelvis_gess_CS
 BCS = {}
 JCS = {}
 BL = {}
 # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
 # pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
-pelvisTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
+# pelvisTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
+pelvisTri = load_mesh('/home/eravera/Documentos/Investigacion/Codigos MATLAB_PYTHON/STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
+
 
 # RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
 
 BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
 
+BCS['pelvis'], JCS['pelvis'] = Ravera_pelvis_ArticSurf(pelvisTri, BCS['pelvis'], JCS['pelvis'], BL['pelvis'])
 
-# define HJC from pelvis bone
-debug_prints = 1
-debug_plots = 1
 
-o = BCS['pelvis']['Origin'].T
 
-vec_x = BCS['pelvis']['V'][:,0]
-vec_z = BCS['pelvis']['V'][:,1]
-vec_y = BCS['pelvis']['V'][:,2]
+# # define HJC from pelvis bone
+# debug_prints = 1
+# debug_plots = 1
+
+# o = BCS['pelvis']['Origin'].T
+
 # vec_x = BCS['pelvis']['V'][:,0]
-# vec_y = BCS['pelvis']['V'][:,2]
 # vec_z = BCS['pelvis']['V'][:,1]
+# vec_y = BCS['pelvis']['V'][:,2]
 
-PW = np.linalg.norm(BL['pelvis']['RASIS'] - BL['pelvis']['LASIS']) # in mm
-PD = np.linalg.norm((BL['pelvis']['RASIS'] + BL['pelvis']['LASIS'])/2 - (BL['pelvis']['RPSIS'] + BL['pelvis']['LPSIS'])/2) # in mm
-# ---------------------------------------
+# PW = np.linalg.norm(BL['pelvis']['RASIS'] - BL['pelvis']['LASIS']) # in mm
+# PD = np.linalg.norm((BL['pelvis']['RASIS'] + BL['pelvis']['LASIS'])/2 - (BL['pelvis']['RPSIS'] + BL['pelvis']['LPSIS'])/2) # in mm
+# # ---------------------------------------
 
-# Predictive Harrington 2 :::::::::::::::
-# Left side
-HJCx = -0.24*PD - 9.9
-HJCy = 0.33*PW + 7.3
-HJCz = -0.30*PW - 10.9
-
-# Harrington_l = o + (HJCx*vec_x - HJCy*vec_z + HJCz*vec_y)
-Harrington_l = o + (HJCx*vec_x - 1.5*HJCy*vec_y + HJCz*vec_z)
-
-# Rigth side
+# # Predictive Harrington 2 :::::::::::::::
+# # Left side
 # HJCx = -0.24*PD - 9.9
 # HJCy = 0.33*PW + 7.3
 # HJCz = -0.30*PW - 10.9
 
-# Harrington_r = o + (HJCx*vec_x + HJCy*vec_z + HJCz*vec_y)
-Harrington_r = o + (HJCx*vec_x + 1.5*HJCy*vec_y + 1*HJCz*vec_z)
+# # Harrington_l = o + (HJCx*vec_x - HJCy*vec_z + HJCz*vec_y)
+# Harrington_l = o + (HJCx*vec_x - 1.5*HJCy*vec_y + HJCz*vec_z)
 
-# project vectors on X
-I_r = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_r), BCS['pelvis']['V'][:,1]))
-I_l = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_l), BCS['pelvis']['V'][:,1]))
+# # Harrington_r = o + (HJCx*vec_x + HJCy*vec_z + HJCz*vec_y)
+# Harrington_r = o + (HJCx*vec_x + 1.5*HJCy*vec_y + 1*HJCz*vec_z)
 
-pto_HJC_r = np.where(pelvisTri['ConnectivityList'] == I_r)[0]
-pto_HJC_l = np.where(pelvisTri['ConnectivityList'] == I_l)[0]
+# # project vectors on X
+# I_r = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_r), BCS['pelvis']['V'][:,1]))
+# I_l = np.argmin(np.dot(np.abs(pelvisTri['Points'] - Harrington_l), BCS['pelvis']['V'][:,1]))
 
-# triang around it
-Face_HJC_r = TriReduceMesh(pelvisTri, pto_HJC_r)
-Face_HJC_l = TriReduceMesh(pelvisTri, pto_HJC_l)
+# pto_HJC_r = np.where(pelvisTri['ConnectivityList'] == I_r)[0]
+# pto_HJC_l = np.where(pelvisTri['ConnectivityList'] == I_l)[0]
 
-# create a triang with them
-Face_HJC_r = TriDilateMesh(pelvisTri, Face_HJC_r, 6)
-Face_HJC_l = TriDilateMesh(pelvisTri, Face_HJC_l, 6)
+# # triang around it
+# Face_HJC_r = TriReduceMesh(pelvisTri, pto_HJC_r)
+# Face_HJC_l = TriReduceMesh(pelvisTri, pto_HJC_l)
 
-
-HJC_r, Radius_HJC_r, ErrorDist_HJC_r = sphere_fit(Face_HJC_r['Points'])
-sph_RMSE_r = np.mean(np.abs(ErrorDist_HJC_r))/10
-
-HJC_l, Radius_HJC_l, ErrorDist_HJC_l = sphere_fit(Face_HJC_l['Points'])
-sph_RMSE_l = np.mean(np.abs(ErrorDist_HJC_l))/10
-
-# print
-print('     Fit R: RMSE: ' + str(sph_RMSE_r) + ' mm');
-
-if debug_prints:
-    print('----------------')
-    print('Right Estimation')
-    print('----------------')
-    print('Centre: ' + str(HJC_r))
-    print('Radius: ' + str(Radius_HJC_r))
-    print('Mean Res: ' + str(sph_RMSE_r))
-    print('-----------------')
-
-# print
-print('     Fit L: RMSE: ' + str(sph_RMSE_r) + ' mm');
-
-if debug_prints:
-    print('----------------')
-    print('Left Estimation')
-    print('----------------')
-    print('Centre: ' + str(HJC_l))
-    print('Radius: ' + str(Radius_HJC_l))
-    print('Mean Res: ' + str(sph_RMSE_l))
-    print('-----------------')
+# # create a triang with them
+# Face_HJC_r = TriDilateMesh(pelvisTri, Face_HJC_r, 6)
+# Face_HJC_l = TriDilateMesh(pelvisTri, Face_HJC_l, 6)
 
 
+# HJC_r, Radius_HJC_r, ErrorDist_HJC_r = sphere_fit(Face_HJC_r['Points'])
+# sph_RMSE_r = np.mean(np.abs(ErrorDist_HJC_r))/10
+
+# HJC_l, Radius_HJC_l, ErrorDist_HJC_l = sphere_fit(Face_HJC_l['Points'])
+# sph_RMSE_l = np.mean(np.abs(ErrorDist_HJC_l))/10
+
+# # print
+# print('     Fit R: RMSE: ' + str(sph_RMSE_r) + ' mm');
+
+# if debug_prints:
+#     print('----------------')
+#     print('Right Estimation')
+#     print('----------------')
+#     print('Centre: ' + str(HJC_r[0]))
+#     print('Radius: ' + str(Radius_HJC_r))
+#     print('Mean Res: ' + str(sph_RMSE_r))
+#     print('-----------------')
+
+# # print
+# print('     Fit L: RMSE: ' + str(sph_RMSE_r) + ' mm');
+
+# if debug_prints:
+#     print('----------------')
+#     print('Left Estimation')
+#     print('----------------')
+#     print('Centre: ' + str(HJC_l[0]))
+#     print('Radius: ' + str(Radius_HJC_l))
+#     print('Mean Res: ' + str(sph_RMSE_l))
+#     print('-----------------')
 
 
-# # Write to the results dictionary
-# CSs['CenterFH']  = Center.T
-# CSs['RadiusFH']  =  Radius
-# CSs['sph_RMSEFH']  =  sph_RMSE
+# # # Write to the results dictionary
+# # CSs['CenterFH']  = Center.T
+# # CSs['RadiusFH']  =  Radius
+# # CSs['sph_RMSEFH']  =  sph_RMSE
 
 
-if debug_plots:
-    fig = plt.figure()
-    ax = fig.add_subplot(projection = '3d')
+# if debug_plots:
+#     fig = plt.figure()
+#     ax = fig.add_subplot(projection = '3d')
     
-    ax.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
-                    triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=0.5, alpha=0.1, shade=False, color = 'gray')
-    ax.plot_trisurf(Face_HJC_r['Points'][:,0], Face_HJC_r['Points'][:,1], Face_HJC_r['Points'][:,2], \
-                      triangles = Face_HJC_r['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'blue')    
+#     ax.plot_trisurf(pelvisTri['Points'][:,0], pelvisTri['Points'][:,1], pelvisTri['Points'][:,2], \
+#                     triangles = pelvisTri['ConnectivityList'], edgecolor=[[0,0,0]], linewidth=0.5, alpha=0.1, shade=False, color = 'gray')
+#     ax.plot_trisurf(Face_HJC_r['Points'][:,0], Face_HJC_r['Points'][:,1], Face_HJC_r['Points'][:,2], \
+#                       triangles = Face_HJC_r['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'blue')    
 
-    ax.plot_trisurf(Face_HJC_l['Points'][:,0], Face_HJC_l['Points'][:,1], Face_HJC_l['Points'][:,2], \
-                      triangles = Face_HJC_l['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'red')
+#     ax.plot_trisurf(Face_HJC_l['Points'][:,0], Face_HJC_l['Points'][:,1], Face_HJC_l['Points'][:,2], \
+#                       triangles = Face_HJC_l['ConnectivityList'], edgecolor=[[0.1,0.1,0.1]], linewidth=0.1, alpha=0.5, color = 'red')
     
-    quickPlotRefSystem(BCS['pelvis'], ax)    
-    # Plot sphere
-    # Create a sphere
-    phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
-    x = Radius_HJC_r*np.sin(phi)*np.cos(theta)
-    y = Radius_HJC_r*np.sin(phi)*np.sin(theta)
-    z = Radius_HJC_r*np.cos(phi)
+#     quickPlotRefSystem(BCS['pelvis'], ax)    
+#     # Plot sphere
+#     # Create a sphere
+#     phi, theta = np.mgrid[0.0:np.pi:50j, 0.0:2.0*np.pi:50j]
+#     x = Radius_HJC_r*np.sin(phi)*np.cos(theta)
+#     y = Radius_HJC_r*np.sin(phi)*np.sin(theta)
+#     z = Radius_HJC_r*np.cos(phi)
 
-    ax.plot_surface(x + HJC_r[0,0], y + HJC_r[0,1], z + HJC_r[0,2], \
-                    color = 'blue', alpha=0.4)
-    ax.plot_surface(x + HJC_l[0,0], y + HJC_l[0,1], z + HJC_l[0,2], \
-                    color = 'red', alpha=0.4)
+#     ax.plot_surface(x + HJC_r[0,0], y + HJC_r[0,1], z + HJC_r[0,2], \
+#                     color = 'blue', alpha=0.4)
+#     ax.plot_surface(x + HJC_l[0,0], y + HJC_l[0,1], z + HJC_l[0,2], \
+#                     color = 'red', alpha=0.4)
     
-    ax.set_box_aspect([1,1,1])
-    plt.show()
+#     ax.set_box_aspect([1,1,1])
+#     plt.show()
 
 
 

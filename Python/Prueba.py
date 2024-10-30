@@ -551,21 +551,21 @@ def Ravera_pelvis_ArticSurf(pelvisTri = {}, BCS = {}, JCS = {}, BL = {}, CoeffMo
     return BCS, JCS
 
 
-#%% prueba de funcion pelvis_gess_CS
-BCS = {}
-JCS = {}
-BL = {}
-# pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
-# pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
-# pelvisTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
-pelvisTri = load_mesh('/home/eravera/Documentos/Investigacion/Codigos MATLAB_PYTHON/STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
+# #%% prueba de funcion pelvis_gess_CS
+# BCS = {}
+# JCS = {}
+# BL = {}
+# # pelvisTri = load_mesh(ruta + 'bone_datasets/TLEM2/stl/pelvis.stl')
+# # pelvisTri = load_mesh(ruta + 'Python/pelvis_new_simplify.stl')
+# # pelvisTri = load_mesh('/home/emi/Documents/Codigos MATLAB_PYTHON/msk-STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
+# pelvisTri = load_mesh('/home/eravera/Documentos/Investigacion/Codigos MATLAB_PYTHON/STAPLE/Python/bone_datasets/meshes/stl/pelvis.stl')
 
 
-# RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
+# # RotPseudoISB2Glob, LargestTriangle, BL = pelvis_guess_CS(pelvisTri, 0)
 
-BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
+# BCS['pelvis'], JCS['pelvis'], BL['pelvis'] = STAPLE_pelvis(pelvisTri,'right', 0)
 
-BCS['pelvis'], JCS['pelvis'] = Ravera_pelvis_ArticSurf(pelvisTri, BCS['pelvis'], JCS['pelvis'], BL['pelvis'])
+# BCS['pelvis'], JCS['pelvis'] = Ravera_pelvis_ArticSurf(pelvisTri, BCS['pelvis'], JCS['pelvis'], BL['pelvis'])
 
 
 
@@ -1300,5 +1300,18 @@ BCS['pelvis'], JCS['pelvis'] = Ravera_pelvis_ArticSurf(pelvisTri, BCS['pelvis'],
     
 # # ax.set_box_aspect([1,1,1])
 # plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

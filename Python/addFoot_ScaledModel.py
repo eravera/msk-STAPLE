@@ -36,7 +36,7 @@ path_file = os.getcwd()
 # set output folder
 output_models_folder = 'opensim_models_examples/Python'
 
-output_model_file_name = 'Ejemplo_OpenSimCreator_ScaledFoot.osim'
+output_model_file_name = 'Carman_auto2020_HipKnee_R_ScaledFoot.osim'
 
 # body sides
 curr_side = 'r'

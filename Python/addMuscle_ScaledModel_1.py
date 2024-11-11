@@ -61,7 +61,7 @@ side = inferBodySideFromAnatomicStruct(triGeom_set)
 # set output folder
 output_models_folder = 'opensim_models_examples/Python'
 
-output_model_file_name = 'Carman_auto2020_HipKnee_R_ScaledFoot_2425_MUSCLES.osim'
+output_model_file_name = 'Carman_auto2020_HipKnee_R_ScaledFoot_2425_MUSCLES_NEW.osim'
 
 
 # STAPLE generated model that we want to merge with the generic baseline
@@ -87,8 +87,9 @@ specific_pelvis = np.linalg.norm(BL['pelvis']['RASIS'] - BL['pelvis']['LASIS'])*
 specific_femur_r = np.linalg.norm(BL['pelvis']['RASIS'] - BL['femur_r']['RKNE'])*0.001
 specific_tibia_r = np.linalg.norm(BL['femur_r']['RKNE'] - BL['tibia_r']['RANK'])*0.001
 
-currentState = Generic_osimModel.initSystem()
-scaled_currentState = Scaled_osimModel.initSystem()
+generic_currentState = Generic_osimModel.initSystem()
+# scaled_currentState = Scaled_osimModel.initSystem()
+currentState = Scaled_osimModel.initSystem()
 
 for muscle in Generic_osimModel.getMuscleList():
     # print(muscle.getName())
@@ -99,12 +100,12 @@ for muscle in Generic_osimModel.getMuscleList():
     
     
     
-    if '_r' == muscle_name[-2:] and (len(muscle_path) == 2 or len(muscle_path) == 7):
+    if '_r' == muscle_name[-2:] and len(muscle_path) == 2:
         # extracting the muscle parameters from reference model
         Lts = muscle.getTendonSlackLength()
         Lof = muscle.getOptimalFiberLength()
         FmaxISO = muscle.getMaxIsometricForce()
-        pennAngle = muscle.getPennationAngle(currentState)
+        pennAngle = muscle.getPennationAngle(generic_currentState)
         
         # Create and set the parameters for the biceps muscle
         muscle1 = opensim.Millard2012EquilibriumMuscle(muscle_name,  # Muscle name
@@ -121,12 +122,13 @@ for muscle in Generic_osimModel.getMuscleList():
             loc_x = point.getLocation(currentState).get(0)
             loc_y = point.getLocation(currentState).get(1)
             loc_z = point.getLocation(currentState).get(2)
-            generic_P = np.array([loc_x, loc_y, loc_z])
+            generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+            generic_scaled_P *=0.9
             
             socket = point.getSocket('parent_frame').getConnecteePath()
             
             if 'pelvis' in socket:
-                P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                 ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                 
                 # compute centroid of neibours
@@ -144,7 +146,7 @@ for muscle in Generic_osimModel.getMuscleList():
                 
             elif 'femur_r' in socket:
                 
-                P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                 ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                 
                 # compute centroid of neibours
@@ -162,7 +164,7 @@ for muscle in Generic_osimModel.getMuscleList():
             
             elif 'tibia_r' in socket:
                 
-                P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                 ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                 
                 # compute centroid of neibours
@@ -180,12 +182,12 @@ for muscle in Generic_osimModel.getMuscleList():
                 
             elif 'calcn_r' in socket:
                 
-                loc_x = point.getLocation(scaled_currentState).get(0)
-                loc_y = point.getLocation(scaled_currentState).get(1)
-                loc_z = point.getLocation(scaled_currentState).get(2)
-                generic_P = np.array([loc_x, loc_y, loc_z])
+                # loc_x = point.getLocation(scaled_currentState).get(0)
+                # loc_y = point.getLocation(scaled_currentState).get(1)
+                # loc_z = point.getLocation(scaled_currentState).get(2)
+                # generic_P = np.array([loc_x, loc_y, loc_z])
                 
-                P = generic_P
+                P = generic_scaled_P
                 P = np.float64(np.reshape(P,(1, P.size)))
                 
                 origin = Specific_osimModel.getBodySet().get('calcn_r')
@@ -202,7 +204,7 @@ for muscle in Generic_osimModel.getMuscleList():
         Lts = muscle.getTendonSlackLength()
         Lof = muscle.getOptimalFiberLength()
         FmaxISO = muscle.getMaxIsometricForce()
-        pennAngle = muscle.getPennationAngle(currentState)
+        pennAngle = muscle.getPennationAngle(generic_currentState)
         
         # Create and set the parameters for the biceps muscle
         muscle1 = opensim.Millard2012EquilibriumMuscle(muscle_name,  # Muscle name
@@ -221,12 +223,13 @@ for muscle in Generic_osimModel.getMuscleList():
                 loc_x = point.getLocation(currentState).get(0)
                 loc_y = point.getLocation(currentState).get(1)
                 loc_z = point.getLocation(currentState).get(2)
-                generic_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P *=0.9
                 
                 socket = point.getSocket('parent_frame').getConnecteePath()
                 
                 if 'pelvis' in socket:
-                    P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                    P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                     ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                     
                     # compute centroid of neibours
@@ -245,11 +248,11 @@ for muscle in Generic_osimModel.getMuscleList():
                 elif 'femur_r' in socket:
                     
                     if muscle_name == 'rect_fem_r':
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                     else:
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -266,36 +269,30 @@ for muscle in Generic_osimModel.getMuscleList():
                     origin = Specific_osimModel.getBodySet().get('femur_r')
                 
                 elif 'tibia_r' in socket:
+                    P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                    ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                     
-                    if muscle_name == 'rect_fem_r':
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        P = np.float64(np.reshape(P,(1, P.size)))
-                                                
-                    else:
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
-                        
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
-                        
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
-                        
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
-                        P = np.float64(np.reshape(P,(1, P.size)))
+                    # compute centroid of neibours
+                    P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                    # P = P1
+                    tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                    
+                    # # create a triang with them
+                    # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                    
+                    P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('tibia_r')
                 
                 elif 'calcn_r' in socket:
                     
-                    loc_x = point.getLocation(scaled_currentState).get(0)
-                    loc_y = point.getLocation(scaled_currentState).get(1)
-                    loc_z = point.getLocation(scaled_currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    # loc_x = point.getLocation(scaled_currentState).get(0)
+                    # loc_y = point.getLocation(scaled_currentState).get(1)
+                    # loc_z = point.getLocation(scaled_currentState).get(2)
+                    # generic_scaled_P = np.array([loc_x, loc_y, loc_z])
                     
-                    P = generic_P
+                    P = generic_scaled_P
                     P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('calcn_r')
@@ -359,23 +356,27 @@ for muscle in Generic_osimModel.getMuscleList():
                 loc_x = point.getLocation(currentState).get(0)
                 loc_y = point.getLocation(currentState).get(1)
                 loc_z = point.getLocation(currentState).get(2)
-                generic_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                if muscle_name in ['med_gas_r', 'lat_gas_r']:
+                    generic_scaled_P *=0.9
+                else:
+                    generic_scaled_P *=0.75
                 
                 socket = point.getSocket('parent_frame').getConnecteePath()
                                 
                 if 'pelvis' in socket:
-                    P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
-                    ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                    P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                    # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                     
-                    # compute centroid of neibours
-                    P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
-                    # P = P1
-                    tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                    # # compute centroid of neibours
+                    # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                    # # P = P1
+                    # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
                     
-                    # # create a triang with them
-                    # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                    # # # create a triang with them
+                    # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
                     
-                    P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                     P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('pelvis')
@@ -383,31 +384,31 @@ for muscle in Generic_osimModel.getMuscleList():
                 elif 'femur_r' in socket:
                     
                     if muscle_name == 'rect_fem_r':
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                                                 
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
                         
-                        # P += np.dot(np.array([0.03339, -0.403, 0.0019]), CS['femur_r']['V'])*0.001
-                        P = (np.mean(tmp_P1['Points'], axis = 0) - np.dot(np.array([-0.03339, 0.403, -0.0019]), CS['femur_r']['V']))*0.001
+                        # # P += np.dot(np.array([0.03339, -0.403, 0.0019]), CS['femur_r']['V'])*0.001
+                        # P = (np.mean(tmp_P1['Points'], axis = 0) - np.dot(np.array([-0.03339, 0.403, -0.0019]), CS['femur_r']['V']))*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                     else:
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('femur_r')
@@ -415,34 +416,34 @@ for muscle in Generic_osimModel.getMuscleList():
                 elif 'tibia_r' in socket:
                     
                     if muscle_name == 'rect_fem_r':
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         # print(generic_P)
                     else:
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('tibia_r')
                 
                 elif 'calcn_r' in socket:
                     
-                    loc_x = point.getLocation(scaled_currentState).get(0)
-                    loc_y = point.getLocation(scaled_currentState).get(1)
-                    loc_z = point.getLocation(scaled_currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    # loc_x = point.getLocation(scaled_currentState).get(0)
+                    # loc_y = point.getLocation(scaled_currentState).get(1)
+                    # loc_z = point.getLocation(scaled_currentState).get(2)
+                    # generic_scaled_P = np.array([loc_x, loc_y, loc_z])
                     
-                    P = generic_P
+                    P = generic_scaled_P
                     P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('calcn_r')
@@ -474,7 +475,7 @@ for muscle in Generic_osimModel.getMuscleList():
         Lts = muscle.getTendonSlackLength()
         Lof = muscle.getOptimalFiberLength()
         FmaxISO = muscle.getMaxIsometricForce()
-        pennAngle = muscle.getPennationAngle(currentState)
+        pennAngle = muscle.getPennationAngle(generic_currentState)
         
         # Create and set the parameters for the biceps muscle
         muscle1 = opensim.Millard2012EquilibriumMuscle(muscle_name,  # Muscle name
@@ -489,17 +490,18 @@ for muscle in Generic_osimModel.getMuscleList():
                 
                 name = point.getName()
                 
-                if name[-1] == '1' or name[-1] == '3' or name[-1] == '4':
+                if name[-1] == '1' or name[-1] == '4':
         
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.9
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
                     
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -517,7 +519,7 @@ for muscle in Generic_osimModel.getMuscleList():
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -535,7 +537,7 @@ for muscle in Generic_osimModel.getMuscleList():
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -554,64 +556,131 @@ for muscle in Generic_osimModel.getMuscleList():
                     muscle1.addNewPathPoint(name,
                                        origin,
                                        opensim.Vec3(P[0,0], P[0,1], P[0,2]))
-                else:
-                    
+                elif name[-1] == '3':
+        
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
-                                    
+                    
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('pelvis')
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('femur_r')
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                    muscle1.addNewPathPoint(name,
+                                       origin,
+                                       opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+                else:
+                    
+                    loc_x = point.getLocation(currentState).get(0)
+                    loc_y = point.getLocation(currentState).get(1)
+                    loc_z = point.getLocation(currentState).get(2)
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
+                    
+                    socket = point.getSocket('parent_frame').getConnecteePath()
+                                    
+                    if 'pelvis' in socket:
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('pelvis')
+                        
+                    elif 'femur_r' in socket:
+                        
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('femur_r')
+                    
+                    elif 'tibia_r' in socket:
+                        
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('tibia_r')
@@ -639,17 +708,18 @@ for muscle in Generic_osimModel.getMuscleList():
                 
                 name = point.getName()
                 
-                if name[-1] == '1' or name[-1] == '2':
+                if name[-1] == '1':
         
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.9
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
                     
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -667,7 +737,7 @@ for muscle in Generic_osimModel.getMuscleList():
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -685,7 +755,7 @@ for muscle in Generic_osimModel.getMuscleList():
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -704,64 +774,131 @@ for muscle in Generic_osimModel.getMuscleList():
                     muscle1.addNewPathPoint(name,
                                        origin,
                                        opensim.Vec3(P[0,0], P[0,1], P[0,2]))
-                elif name[-1] == '3':
-                    
+                elif name[-1] == '2':
+        
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.9
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
-                                    
+                    
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('pelvis')
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('femur_r')
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                    muscle1.addNewPathPoint(name,
+                                       origin,
+                                       opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+                elif name[-1] == '3':
+                    
+                    loc_x = point.getLocation(currentState).get(0)
+                    loc_y = point.getLocation(currentState).get(1)
+                    loc_z = point.getLocation(currentState).get(2)
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
+                    
+                    socket = point.getSocket('parent_frame').getConnecteePath()
+                                    
+                    if 'pelvis' in socket:
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('pelvis')
+                        
+                    elif 'femur_r' in socket:
+                        
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('femur_r')
+                    
+                    elif 'tibia_r' in socket:
+                        
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('tibia_r')
@@ -820,7 +957,7 @@ for muscle in Generic_osimModel.getMuscleList():
                     coord_z = Specific_osimModel.getCoordinateSet().get('knee_angle_r')
                     func_SimmSpline = opensim.SimmSpline()
                     x0 = np.array([-2.0944, 0.1745])
-                    y0 = np.array([0.0018, 0.0018]) - 1*CS['tibia_r']['Origin'][2]*0.001
+                    y0 = np.array([0.0018, 0.0018]) - 2*CS['tibia_r']['Origin'][2]*0.001
                     for i in range(len(x0)):
                         func_SimmSpline.addPoint(x0[i], y0[i])
                                         
@@ -840,59 +977,60 @@ for muscle in Generic_osimModel.getMuscleList():
                 loc_x = point.getLocation(currentState).get(0)
                 loc_y = point.getLocation(currentState).get(1)
                 loc_z = point.getLocation(currentState).get(2)
-                generic_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P *=0.8
                 
                 socket = point.getSocket('parent_frame').getConnecteePath()
                 
                 if 'pelvis' in socket:
-                    P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
-                    ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                    P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                    # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                     
-                    # compute centroid of neibours
-                    P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
-                    # P = P1
-                    tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                    # # compute centroid of neibours
+                    # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                    # # P = P1
+                    # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
                     
-                    # # create a triang with them
-                    # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                    # # # create a triang with them
+                    # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
                     
-                    P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                     P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('pelvis')
                     
                 elif 'femur_r' in socket:
                     
-                    P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
-                    ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                    P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                    # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                     
-                    # compute centroid of neibours
-                    P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
-                    # P = P1
-                    tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                    # # compute centroid of neibours
+                    # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                    # # P = P1
+                    # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
                     
-                    # # create a triang with them
-                    # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                    # # # create a triang with them
+                    # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
                     
-                    P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                     P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('femur_r')
                 
                 elif 'tibia_r' in socket:
                     
-                    P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                    ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                    P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                    # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                     
-                    # compute centroid of neibours
-                    P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                    # P = P1
-                    tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                    # # compute centroid of neibours
+                    # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                    # # P = P1
+                    # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
                     
-                    # # create a triang with them
-                    # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                    # # # create a triang with them
+                    # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
                     
-                    P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                     P = np.float64(np.reshape(P,(1, P.size)))
                     
                     origin = Specific_osimModel.getBodySet().get('tibia_r')
@@ -910,7 +1048,7 @@ for muscle in Generic_osimModel.getMuscleList():
         Lts = muscle.getTendonSlackLength()
         Lof = muscle.getOptimalFiberLength()
         FmaxISO = muscle.getMaxIsometricForce()
-        pennAngle = muscle.getPennationAngle(currentState)
+        pennAngle = muscle.getPennationAngle(generic_currentState)
         
         # Create and set the parameters for the biceps muscle
         muscle1 = opensim.Millard2012EquilibriumMuscle(muscle_name,  # Muscle name
@@ -926,17 +1064,18 @@ for muscle in Generic_osimModel.getMuscleList():
                 
                 name = point.getName()
                 
-                if name[-1] == '1' or name[-1] == '3' or name[-1] == '4'  or name[-1] == '5':
+                if name[-1] == '1' or name[-1] == '5':
         
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.9
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
                     
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -955,7 +1094,7 @@ for muscle in Generic_osimModel.getMuscleList():
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -974,46 +1113,96 @@ for muscle in Generic_osimModel.getMuscleList():
                     muscle1.addNewPathPoint(name,
                                        origin,
                                        opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+                elif name[-1] == '3' or name[-1] == '4':
+        
+                    loc_x = point.getLocation(currentState).get(0)
+                    loc_y = point.getLocation(currentState).get(1)
+                    loc_z = point.getLocation(currentState).get(2)
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
+                    
+                    socket = point.getSocket('parent_frame').getConnecteePath()
+                    
+                    if 'pelvis' in socket:
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('pelvis')
+                    
+                    
+                    elif 'tibia_r' in socket:
+                        
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                    muscle1.addNewPathPoint(name,
+                                       origin,
+                                       opensim.Vec3(P[0,0], P[0,1], P[0,2]))
                 else:
                     
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
                                     
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('pelvis')
                                         
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('tibia_r')
@@ -1039,17 +1228,18 @@ for muscle in Generic_osimModel.getMuscleList():
                 
                 name = point.getName()
                 
-                if name[-1] == '1' or name[-1] == '2' or name[-1] == '4' or name[-1] == '5':
+                if name[-1] == '1' or name[-1] == '5':
         
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.9
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
                     
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -1067,7 +1257,7 @@ for muscle in Generic_osimModel.getMuscleList():
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -1085,7 +1275,7 @@ for muscle in Generic_osimModel.getMuscleList():
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -1104,64 +1294,132 @@ for muscle in Generic_osimModel.getMuscleList():
                     muscle1.addNewPathPoint(name,
                                        origin,
                                        opensim.Vec3(P[0,0], P[0,1], P[0,2]))
-                else:
                     
+                elif name[-1] == '2' or name[-1] == '4':
+        
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
-                                    
+                    
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('pelvis')
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('femur_r')
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                    muscle1.addNewPathPoint(name,
+                                       origin,
+                                       opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+                else:
+                    
+                    loc_x = point.getLocation(currentState).get(0)
+                    loc_y = point.getLocation(currentState).get(1)
+                    loc_z = point.getLocation(currentState).get(2)
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
+                    
+                    socket = point.getSocket('parent_frame').getConnecteePath()
+                                    
+                    if 'pelvis' in socket:
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('pelvis')
+                        
+                    elif 'femur_r' in socket:
+                        
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('femur_r')
+                    
+                    elif 'tibia_r' in socket:
+                        
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('tibia_r')
@@ -1188,17 +1446,18 @@ for muscle in Generic_osimModel.getMuscleList():
                 
                 name = point.getName()
                 
-                if name[-1] == '1' or name[-1] == '2':
+                if name[-1] == '1':
         
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.9
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
                     
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -1216,7 +1475,7 @@ for muscle in Generic_osimModel.getMuscleList():
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -1234,7 +1493,7 @@ for muscle in Generic_osimModel.getMuscleList():
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                         ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
                         # compute centroid of neibours
@@ -1253,64 +1512,132 @@ for muscle in Generic_osimModel.getMuscleList():
                     muscle1.addNewPathPoint(name,
                                        origin,
                                        opensim.Vec3(P[0,0], P[0,1], P[0,2]))
-                elif name[-1] == '3' or name[-1] == '4':
-                    
+                elif name[-1] == '2':
+        
                     loc_x = point.getLocation(currentState).get(0)
                     loc_y = point.getLocation(currentState).get(1)
                     loc_z = point.getLocation(currentState).get(2)
-                    generic_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
                     
                     socket = point.getSocket('parent_frame').getConnecteePath()
-                                    
+                    
                     if 'pelvis' in socket:
-                        P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('pelvis')
                         
                     elif 'femur_r' in socket:
                         
-                        P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('femur_r')
                     
                     elif 'tibia_r' in socket:
                         
-                        P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
-                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                         
-                        # compute centroid of neibours
-                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
-                        # P = P1
-                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
                         
-                        # # create a triang with them
-                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
                         
-                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                    muscle1.addNewPathPoint(name,
+                                       origin,
+                                       opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+                    
+                elif name[-1] == '3' or name[-1] == '4':
+                    
+                    loc_x = point.getLocation(currentState).get(0)
+                    loc_y = point.getLocation(currentState).get(1)
+                    loc_z = point.getLocation(currentState).get(2)
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.7
+                    
+                    socket = point.getSocket('parent_frame').getConnecteePath()
+                                    
+                    if 'pelvis' in socket:
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('pelvis')
+                        
+                    elif 'femur_r' in socket:
+                        
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('femur_r')
+                    
+                    elif 'tibia_r' in socket:
+                        
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
                         P = np.float64(np.reshape(P,(1, P.size)))
                         
                         origin = Specific_osimModel.getBodySet().get('tibia_r')
@@ -1385,16 +1712,175 @@ for muscle in Generic_osimModel.getMuscleList():
                 # print(point.getName())
                 
                 name = point.getName()
+                
+                if name[-1] == '1' or name[-1] == '5':
         
+                    loc_x = point.getLocation(currentState).get(0)
+                    loc_y = point.getLocation(currentState).get(1)
+                    loc_z = point.getLocation(currentState).get(2)
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.9
+                    
+                    socket = point.getSocket('parent_frame').getConnecteePath()
+                    
+                    if 'pelvis' in socket:
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        
+                        # compute centroid of neibours
+                        P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # P = P1
+                        tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        
+                        # # create a triang with them
+                        # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        
+                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('pelvis')
+                        
+                    elif 'femur_r' in socket:
+                        
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        
+                        # compute centroid of neibours
+                        P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # P = P1
+                        tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        
+                        # # create a triang with them
+                        # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        
+                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('femur_r')
+                    
+                    elif 'tibia_r' in socket:
+                        
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        
+                        # compute centroid of neibours
+                        P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # P = P1
+                        tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        
+                        # # create a triang with them
+                        # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        
+                        P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                    muscle1.addNewPathPoint(name,
+                                       origin,
+                                       opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+                    
+                else:
+                        
+                    loc_x = point.getLocation(currentState).get(0)
+                    loc_y = point.getLocation(currentState).get(1)
+                    loc_z = point.getLocation(currentState).get(2)
+                    generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    generic_scaled_P *=0.8
+                    
+                    socket = point.getSocket('parent_frame').getConnecteePath()
+                    
+                    if 'pelvis' in socket:
+                        P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('pelvis')
+                        
+                    elif 'femur_r' in socket:
+                        
+                        P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('femur_r')
+                    
+                    elif 'tibia_r' in socket:
+                        
+                        P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                        # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                        
+                        # # compute centroid of neibours
+                        # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                        # # P = P1
+                        # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                        
+                        # # # create a triang with them
+                        # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                        
+                        # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                        P = np.float64(np.reshape(P,(1, P.size)))
+                        
+                        origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                    muscle1.addNewPathPoint(name,
+                                           origin,
+                                           opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+        
+            Specific_osimModel.addForce(muscle1)
+    
+    # 7 MUSCLE PATH
+    if '_r' == muscle_name[-2:] and len(muscle_path) == 7:
+        # extracting the muscle parameters from reference model
+        Lts = muscle.getTendonSlackLength()
+        Lof = muscle.getOptimalFiberLength()
+        FmaxISO = muscle.getMaxIsometricForce()
+        pennAngle = muscle.getPennationAngle(generic_currentState)
+        
+        # Create and set the parameters for the biceps muscle
+        muscle1 = opensim.Millard2012EquilibriumMuscle(muscle_name,  # Muscle name
+                                                   FmaxISO,  # Max isometric force
+                                                   Lof,  # Optimal fiber length
+                                                   Lts,  # Tendon slack length
+                                                   pennAngle)  # Pennation angle
+        
+        for point in muscle.getGeometryPath().getPathPointSet():
+            # print(point.getName())
+            
+            name = point.getName()
+            
+            if name[-1] == '1' or name[-1] == '7':
+    
                 loc_x = point.getLocation(currentState).get(0)
                 loc_y = point.getLocation(currentState).get(1)
                 loc_z = point.getLocation(currentState).get(2)
-                generic_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P *=0.9
                 
                 socket = point.getSocket('parent_frame').getConnecteePath()
                 
                 if 'pelvis' in socket:
-                    P = generic_P*(specific_pelvis/generic_pelvis) + CS['pelvis']['Origin'].T*0.001
+                    P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
                     ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
                     
                     # compute centroid of neibours
@@ -1412,7 +1898,7 @@ for muscle in Generic_osimModel.getMuscleList():
                     
                 elif 'femur_r' in socket:
                     
-                    P = generic_P*(specific_femur_r/generic_femur) + CS['femur_r']['Origin'].T*0.001
+                    P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
                     ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
                     
                     # compute centroid of neibours
@@ -1430,7 +1916,7 @@ for muscle in Generic_osimModel.getMuscleList():
                 
                 elif 'tibia_r' in socket:
                     
-                    P = generic_P*(specific_tibia_r/generic_tibia) + CS['tibia_r']['Origin'].T*0.001
+                    P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
                     ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
                     
                     # compute centroid of neibours
@@ -1447,11 +1933,89 @@ for muscle in Generic_osimModel.getMuscleList():
                     origin = Specific_osimModel.getBodySet().get('tibia_r')
                 
                 muscle1.addNewPathPoint(name,
+                                   origin,
+                                   opensim.Vec3(P[0,0], P[0,1], P[0,2]))
+            
+            else:
+                
+                loc_x = point.getLocation(currentState).get(0)
+                loc_y = point.getLocation(currentState).get(1)
+                loc_z = point.getLocation(currentState).get(2)
+                generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                generic_scaled_P *=0.8
+                
+                socket = point.getSocket('parent_frame').getConnecteePath()
+                
+                if 'pelvis' in socket:
+                    P = generic_scaled_P + CS['pelvis']['Origin'].T*0.001
+                    # ind_P = np.argmin(np.linalg.norm((triGeom_set['pelvis']['Points'] - P*1000), axis = 1))
+                    
+                    # # compute centroid of neibours
+                    # P1 = np.where(triGeom_set['pelvis']['ConnectivityList'] == ind_P)[0]
+                    # # P = P1
+                    # tmp_P1 = TriReduceMesh(triGeom_set['pelvis'], P1)
+                    
+                    # # # create a triang with them
+                    # # tmp_P1 = TriDilateMesh(triGeom_set['pelvis'], tmp_P1, 1)
+                    
+                    # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    P = np.float64(np.reshape(P,(1, P.size)))
+                    
+                    origin = Specific_osimModel.getBodySet().get('pelvis')
+                    
+                elif 'femur_r' in socket:
+                    
+                    P = generic_scaled_P + CS['femur_r']['Origin'].T*0.001
+                    # ind_P = np.argmin(np.linalg.norm((triGeom_set['femur_r']['Points'] - P*1000), axis = 1))
+                    
+                    # # compute centroid of neibours
+                    # P1 = np.where(triGeom_set['femur_r']['ConnectivityList'] == ind_P)[0]
+                    # # P = P1
+                    # tmp_P1 = TriReduceMesh(triGeom_set['femur_r'], P1)
+                    
+                    # # # create a triang with them
+                    # # tmp_P1 = TriDilateMesh(triGeom_set['femur_r'], tmp_P1, 1)
+                    
+                    # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    P = np.float64(np.reshape(P,(1, P.size)))
+                    
+                    origin = Specific_osimModel.getBodySet().get('femur_r')
+                
+                elif 'tibia_r' in socket:
+                    
+                    P = generic_scaled_P + CS['tibia_r']['Origin'].T*0.001
+                    # ind_P = np.argmin(np.linalg.norm((triGeom_set['tibia_r']['Points'] - P*1000), axis = 1))
+                    
+                    # # compute centroid of neibours
+                    # P1 = np.where(triGeom_set['tibia_r']['ConnectivityList'] == ind_P)[0]
+                    # # P = P1
+                    # tmp_P1 = TriReduceMesh(triGeom_set['tibia_r'], P1)
+                    
+                    # # # create a triang with them
+                    # # tmp_P1 = TriDilateMesh(triGeom_set['tibia_r'], tmp_P1, 1)
+                    
+                    # P = np.mean(tmp_P1['Points'], axis = 0)*0.001
+                    P = np.float64(np.reshape(P,(1, P.size)))
+                    
+                    origin = Specific_osimModel.getBodySet().get('tibia_r')
+                    
+                elif 'calcn_r' in socket:
+                    
+                    # loc_x = point.getLocation(scaled_currentState).get(0)
+                    # loc_y = point.getLocation(scaled_currentState).get(1)
+                    # loc_z = point.getLocation(scaled_currentState).get(2)
+                    # generic_scaled_P = np.array([loc_x, loc_y, loc_z])
+                    
+                    P = generic_scaled_P
+                    P = np.float64(np.reshape(P,(1, P.size)))
+                    
+                    origin = Specific_osimModel.getBodySet().get('calcn_r')
+                
+                muscle1.addNewPathPoint(name,
                                        origin,
                                        opensim.Vec3(P[0,0], P[0,1], P[0,2]))
-        
-            Specific_osimModel.addForce(muscle1)
-       
+    
+        Specific_osimModel.addForce(muscle1)
 
 
 Specific_osimModel.initSystem()

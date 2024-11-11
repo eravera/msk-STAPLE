@@ -36,13 +36,15 @@ path_file = os.getcwd()
 # set output folder
 output_models_folder = 'opensim_models_examples/Python'
 
-output_model_file_name = 'Carman_auto2020_HipKnee_R_ScaledFoot.osim'
+# output_model_file_name = 'Carman_auto2020_HipKnee_R_ScaledFoot.osim'
+output_model_file_name = 'Carman_auto2020_HipKnee_R_ScaledFoot_2425.osim'
 
 # body sides
 curr_side = 'r'
 
 # generic model to use as baseline model
-Generic_osimModel_file = os.path.join(path_file, output_models_folder, 'GAIT2392_SCALED.osim')
+# Generic_osimModel_file = os.path.join(path_file, output_models_folder, 'GAIT2392_SCALED.osim')
+Generic_osimModel_file = os.path.join('/home/emi/Documents/DataSets/2425~V T/2425~aa~Descalzo solo/2425~aa~Standing_scaled.osim')
 # STAPLE generated model that we want to merge with the generic baseline
 Specific_osimModel_file = os.path.join(path_file, output_models_folder, 'Carman_auto2020_HipKnee_R.osim')
 
